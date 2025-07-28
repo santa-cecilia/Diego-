@@ -1,0 +1,30 @@
+.agenda-container {
+  padding: 8px;
+  max-width: 1600px;
+  margin: auto;
+}
+
+.agenda-title {
+  font-size: 16px;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 18px;
+}
+
+.agenda-scroll {
+  overflow-x: auto;
+}
+
+.agenda-table {
+  width: 80%;
+  border-collapse: collapse;
+  text-align: center;
+  font-size: 10px;
+}
+
+.agenda-table th,
+.agenda-table td {
+  border: 1px solid #999;
+  padding: 3px;
+  min-width: 40px;
+}
