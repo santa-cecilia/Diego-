@@ -1,38 +1,37 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient"; // ajuste o caminho se necessário
 
-
 const instrumentos = ["Violão", "Violino", "Piano", "Teclado", "Canto"];
 
-const [servicos, setServicos] = useState([]);
-
-useEffect(() => {
-  async function carregarServicos() {
-    const { data, error } = await supabase.from("servicos").select("*");
-    if (!error) setServicos(data);
-  }
-  carregarServicos();
-}, []);
-
+const Servicos = () => {
+  const [servicos, setServicos] = useState([]);
   const [novoServico, setNovoServico] = useState({
     instrumento: "",
     tempo: "",
     valor: ""
   });
-
   const [editandoIndex, setEditandoIndex] = useState(null);
   const [servicoEditado, setServicoEditado] = useState(null);
 
-  const salvarServicos = (dados) => {
-    setServicos(dados);
-    localStorage.setItem("servicos", JSON.stringify(dados));
-  };
+  useEffect(() => {
+    async function carregarServicos() {
+      const { data, error } = await supabase.from("servicos").select("*");
+      if (!error) setServicos(data);
+    }
+    carregarServicos();
+  }, []);
 
-  const adicionarServico = (e) => {
+  const adicionarServico = async (e) => {
     e.preventDefault();
-    const atualizados = [...servicos, novoServico];
-    salvarServicos(atualizados);
-    setNovoServico({ instrumento: "", tempo: "", valor: "" });
+    const { data, error } = await supabase
+      .from("servicos")
+      .insert([novoServico])
+      .select();
+
+    if (!error && data) {
+      setServicos([...servicos, ...data]);
+      setNovoServico({ instrumento: "", tempo: "", valor: "" });
+    }
   };
 
   const iniciarEdicao = (index) => {
@@ -40,12 +39,21 @@ useEffect(() => {
     setServicoEditado({ ...servicos[index] });
   };
 
-  const salvarEdicao = () => {
-    const atualizados = [...servicos];
-    atualizados[editandoIndex] = servicoEditado;
-    salvarServicos(atualizados);
-    setEditandoIndex(null);
-    setServicoEditado(null);
+  const salvarEdicao = async () => {
+    const servicoOriginal = servicos[editandoIndex];
+    const { data, error } = await supabase
+      .from("servicos")
+      .update(servicoEditado)
+      .eq("id", servicoOriginal.id)
+      .select();
+
+    if (!error && data) {
+      const atualizados = [...servicos];
+      atualizados[editandoIndex] = data[0];
+      setServicos(atualizados);
+      setEditandoIndex(null);
+      setServicoEditado(null);
+    }
   };
 
   const cancelarEdicao = () => {
@@ -108,7 +116,10 @@ useEffect(() => {
         <h3 className="font-semibold mb-2">Serviços Cadastrados:</h3>
         <ul className="space-y-2">
           {servicos.map((s, i) => (
-            <li key={i} className="border p-2 rounded text-sm flex flex-col gap-2">
+            <li
+              key={s.id || i}
+              className="border p-2 rounded text-sm flex flex-col gap-2"
+            >
               {editandoIndex === i ? (
                 <>
                   <select
@@ -120,7 +131,9 @@ useEffect(() => {
                   >
                     <option value="">Selecione o curso</option>
                     {instrumentos.map((inst) => (
-                      <option key={inst} value={inst}>{inst}</option>
+                      <option key={inst} value={inst}>
+                        {inst}
+                      </option>
                     ))}
                   </select>
 
@@ -159,7 +172,9 @@ useEffect(() => {
                 </>
               ) : (
                 <>
-                  <span><strong>{s.instrumento}</strong> - {s.tempo} - R$ {s.valor}</span>
+                  <span>
+                    <strong>{s.instrumento}</strong> - {s.tempo} - R$ {s.valor}
+                  </span>
                   <button
                     onClick={() => iniciarEdicao(i)}
                     className="text-blue-600 text-xs underline w-fit"
