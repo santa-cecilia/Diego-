@@ -1,12 +1,18 @@
 import React, { useState, useEffect } from "react";
+import { supabase } from "../supabaseClient"; // ajuste o caminho se necessário
+
 
 const instrumentos = ["Violão", "Violino", "Piano", "Teclado", "Canto"];
 
-const Servicos = () => {
-  const [servicos, setServicos] = useState(() => {
-    const dados = localStorage.getItem("servicos");
-    return dados ? JSON.parse(dados) : [];
-  });
+const [servicos, setServicos] = useState([]);
+
+useEffect(() => {
+  async function carregarServicos() {
+    const { data, error } = await supabase.from("servicos").select("*");
+    if (!error) setServicos(data);
+  }
+  carregarServicos();
+}, []);
 
   const [novoServico, setNovoServico] = useState({
     instrumento: "",
