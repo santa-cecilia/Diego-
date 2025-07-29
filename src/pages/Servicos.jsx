@@ -14,40 +14,33 @@ const Servicos = () => {
   const [servicoEditado, setServicoEditado] = useState(null);
 
   useEffect(() => {
-    async function carregarServicos() {
-      const { data, error } = await supabase.from("servicos").select("*");
-      if (error) {
-        console.error("Erro ao carregar serviços:", error);
+    const carregarServicos = async () => {
+      const local = localStorage.getItem("servicos");
+      if (local) {
+        setServicos(JSON.parse(local));
       } else {
-        setServicos(data);
+        const { data, error } = await supabase.from("servicos").select("*");
+        if (data && !error) {
+          setServicos(data);
+          localStorage.setItem("servicos", JSON.stringify(data));
+        }
       }
-    }
+    };
     carregarServicos();
   }, []);
 
-  const adicionarServico = async (e) => {
+  const salvarServicos = (dados) => {
+    setServicos(dados);
+    localStorage.setItem("servicos", JSON.stringify(dados));
+  };
+
+  const adicionarServico = (e) => {
     e.preventDefault();
-    console.log("Tentando adicionar serviço:", novoServico);
+    if (!novoServico.instrumento || !novoServico.tempo || !novoServico.valor) return;
 
-    // Converter valor para número
-    const novoServicoFormatado = {
-      ...novoServico,
-      valor: Number(novoServico.valor)
-    };
-
-    const { data, error } = await supabase
-      .from("servicos")
-      .insert([novoServicoFormatado])
-      .select();
-
-    if (error) {
-      console.error("Erro ao adicionar serviço:", error);
-      alert("Erro ao adicionar serviço. Veja o console.");
-    } else {
-      console.log("Serviço adicionado com sucesso:", data);
-      setServicos([...servicos, ...data]);
-      setNovoServico({ instrumento: "", tempo: "", valor: "" });
-    }
+    const atualizados = [...servicos, novoServico];
+    salvarServicos(atualizados);
+    setNovoServico({ instrumento: "", tempo: "", valor: "" });
   };
 
   const iniciarEdicao = (index) => {
@@ -55,31 +48,12 @@ const Servicos = () => {
     setServicoEditado({ ...servicos[index] });
   };
 
-  const salvarEdicao = async () => {
-    const servicoOriginal = servicos[editandoIndex];
-    // Converter valor para número antes do update
-    const servicoEditadoFormatado = {
-      ...servicoEditado,
-      valor: Number(servicoEditado.valor)
-    };
-
-    const { data, error } = await supabase
-      .from("servicos")
-      .update(servicoEditadoFormatado)
-      .eq("id", servicoOriginal.id)
-      .select();
-
-    if (error) {
-      console.error("Erro ao salvar edição:", error);
-      alert("Erro ao salvar edição. Veja o console.");
-    } else {
-      console.log("Serviço editado com sucesso:", data);
-      const atualizados = [...servicos];
-      atualizados[editandoIndex] = data[0];
-      setServicos(atualizados);
-      setEditandoIndex(null);
-      setServicoEditado(null);
-    }
+  const salvarEdicao = () => {
+    const atualizados = [...servicos];
+    atualizados[editandoIndex] = servicoEditado;
+    salvarServicos(atualizados);
+    setEditandoIndex(null);
+    setServicoEditado(null);
   };
 
   const cancelarEdicao = () => {
@@ -142,17 +116,17 @@ const Servicos = () => {
         <h3 className="font-semibold mb-2">Serviços Cadastrados:</h3>
         <ul className="space-y-2">
           {servicos.map((s, i) => (
-            <li
-              key={s.id || i}
-              className="border p-2 rounded text-sm flex flex-col gap-2"
-            >
+            <li key={i} className="border p-2 rounded text-sm flex flex-col gap-2">
               {editandoIndex === i ? (
                 <>
                   <select
                     className="w-full p-1 border rounded"
                     value={servicoEditado.instrumento}
                     onChange={(e) =>
-                      setServicoEditado({ ...servicoEditado, instrumento: e.target.value })
+                      setServicoEditado({
+                        ...servicoEditado,
+                        instrumento: e.target.value
+                      })
                     }
                   >
                     <option value="">Selecione o curso</option>
@@ -168,7 +142,10 @@ const Servicos = () => {
                     className="w-full p-1 border rounded"
                     value={servicoEditado.tempo}
                     onChange={(e) =>
-                      setServicoEditado({ ...servicoEditado, tempo: e.target.value })
+                      setServicoEditado({
+                        ...servicoEditado,
+                        tempo: e.target.value
+                      })
                     }
                   />
 
@@ -177,7 +154,10 @@ const Servicos = () => {
                     className="w-full p-1 border rounded"
                     value={servicoEditado.valor}
                     onChange={(e) =>
-                      setServicoEditado({ ...servicoEditado, valor: e.target.value })
+                      setServicoEditado({
+                        ...servicoEditado,
+                        valor: e.target.value
+                      })
                     }
                   />
 
