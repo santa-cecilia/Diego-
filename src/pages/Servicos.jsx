@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { supabase } from "../supabaseClient"; // ajuste o caminho se necessário
+import { supabase } from "../supabaseClient";
 
 const instrumentos = ["Violão", "Violino", "Piano", "Teclado", "Canto"];
 
@@ -15,14 +15,15 @@ const Servicos = () => {
 
   useEffect(() => {
     const carregarServicos = async () => {
-      const local = localStorage.getItem("servicos");
-      if (local) {
-        setServicos(JSON.parse(local));
+      const { data, error } = await supabase.from("servicos").select("*");
+
+      if (data && !error) {
+        setServicos(data);
+        localStorage.setItem("servicos", JSON.stringify(data));
       } else {
-        const { data, error } = await supabase.from("servicos").select("*");
-        if (data && !error) {
-          setServicos(data);
-          localStorage.setItem("servicos", JSON.stringify(data));
+        const local = localStorage.getItem("servicos");
+        if (local) {
+          setServicos(JSON.parse(local));
         }
       }
     };
@@ -34,11 +35,18 @@ const Servicos = () => {
     localStorage.setItem("servicos", JSON.stringify(dados));
   };
 
-  const adicionarServico = (e) => {
+  const adicionarServico = async (e) => {
     e.preventDefault();
     if (!novoServico.instrumento || !novoServico.tempo || !novoServico.valor) return;
 
-    const atualizados = [...servicos, novoServico];
+    const { data, error } = await supabase.from("servicos").insert([novoServico]);
+
+    if (error) {
+      console.error("Erro ao salvar no Supabase:", error);
+      return;
+    }
+
+    const atualizados = [...servicos, ...data];
     salvarServicos(atualizados);
     setNovoServico({ instrumento: "", tempo: "", valor: "" });
   };
@@ -48,9 +56,25 @@ const Servicos = () => {
     setServicoEditado({ ...servicos[index] });
   };
 
-  const salvarEdicao = () => {
+  const salvarEdicao = async () => {
+    const servicoAntigo = servicos[editandoIndex];
+
+    const { data, error } = await supabase
+      .from("servicos")
+      .update({
+        instrumento: servicoEditado.instrumento,
+        tempo: servicoEditado.tempo,
+        valor: servicoEditado.valor
+      })
+      .eq("id", servicoAntigo.id);
+
+    if (error) {
+      console.error("Erro ao atualizar no Supabase:", error);
+      return;
+    }
+
     const atualizados = [...servicos];
-    atualizados[editandoIndex] = servicoEditado;
+    atualizados[editandoIndex] = { ...servicoAntigo, ...servicoEditado };
     salvarServicos(atualizados);
     setEditandoIndex(null);
     setServicoEditado(null);
@@ -116,7 +140,7 @@ const Servicos = () => {
         <h3 className="font-semibold mb-2">Serviços Cadastrados:</h3>
         <ul className="space-y-2">
           {servicos.map((s, i) => (
-            <li key={i} className="border p-2 rounded text-sm flex flex-col gap-2">
+            <li key={s.id || i} className="border p-2 rounded text-sm flex flex-col gap-2">
               {editandoIndex === i ? (
                 <>
                   <select
