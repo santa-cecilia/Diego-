@@ -16,19 +16,35 @@ const Servicos = () => {
   useEffect(() => {
     async function carregarServicos() {
       const { data, error } = await supabase.from("servicos").select("*");
-      if (!error) setServicos(data);
+      if (error) {
+        console.error("Erro ao carregar serviços:", error);
+      } else {
+        setServicos(data);
+      }
     }
     carregarServicos();
   }, []);
 
   const adicionarServico = async (e) => {
     e.preventDefault();
+    console.log("Tentando adicionar serviço:", novoServico);
+
+    // Converter valor para número
+    const novoServicoFormatado = {
+      ...novoServico,
+      valor: Number(novoServico.valor)
+    };
+
     const { data, error } = await supabase
       .from("servicos")
-      .insert([novoServico])
+      .insert([novoServicoFormatado])
       .select();
 
-    if (!error && data) {
+    if (error) {
+      console.error("Erro ao adicionar serviço:", error);
+      alert("Erro ao adicionar serviço. Veja o console.");
+    } else {
+      console.log("Serviço adicionado com sucesso:", data);
       setServicos([...servicos, ...data]);
       setNovoServico({ instrumento: "", tempo: "", valor: "" });
     }
@@ -41,13 +57,23 @@ const Servicos = () => {
 
   const salvarEdicao = async () => {
     const servicoOriginal = servicos[editandoIndex];
+    // Converter valor para número antes do update
+    const servicoEditadoFormatado = {
+      ...servicoEditado,
+      valor: Number(servicoEditado.valor)
+    };
+
     const { data, error } = await supabase
       .from("servicos")
-      .update(servicoEditado)
+      .update(servicoEditadoFormatado)
       .eq("id", servicoOriginal.id)
       .select();
 
-    if (!error && data) {
+    if (error) {
+      console.error("Erro ao salvar edição:", error);
+      alert("Erro ao salvar edição. Veja o console.");
+    } else {
+      console.log("Serviço editado com sucesso:", data);
       const atualizados = [...servicos];
       atualizados[editandoIndex] = data[0];
       setServicos(atualizados);
