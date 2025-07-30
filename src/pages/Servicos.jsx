@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { supabase } from "../supabaseClient";
+import {
+  carregarServicos,
+  salvarServico,
+  salvarServicosLocal,
+} from "../utils/supabase";
 
 const instrumentos = ["Violão", "Violino", "Piano", "Teclado", "Canto"];
 
@@ -14,41 +18,22 @@ const Servicos = () => {
   const [servicoEditado, setServicoEditado] = useState(null);
 
   useEffect(() => {
-    const carregarServicos = async () => {
-      const { data, error } = await supabase.from("servicos").select("*");
-
-      if (data && !error) {
-        setServicos(data);
-        localStorage.setItem("servicos", JSON.stringify(data));
-      } else {
-        const local = localStorage.getItem("servicos");
-        if (local) {
-          setServicos(JSON.parse(local));
-        }
-      }
+    const carregar = async () => {
+      const dados = await carregarServicos();
+      setServicos(dados);
     };
-    carregarServicos();
+    carregar();
   }, []);
-
-  const salvarServicos = (dados) => {
-    setServicos(dados);
-    localStorage.setItem("servicos", JSON.stringify(dados));
-  };
 
   const adicionarServico = async (e) => {
     e.preventDefault();
     if (!novoServico.instrumento || !novoServico.tempo || !novoServico.valor) return;
 
-    const { data, error } = await supabase.from("servicos").insert([novoServico]);
-
-    if (error) {
-      console.error("Erro ao salvar no Supabase:", error);
-      return;
+    const resultado = await salvarServico(novoServico);
+    if (resultado.success) {
+      setServicos(resultado.data);
+      setNovoServico({ instrumento: "", tempo: "", valor: "" });
     }
-
-    const atualizados = [...servicos, ...data];
-    salvarServicos(atualizados);
-    setNovoServico({ instrumento: "", tempo: "", valor: "" });
   };
 
   const iniciarEdicao = (index) => {
@@ -57,25 +42,10 @@ const Servicos = () => {
   };
 
   const salvarEdicao = async () => {
-    const servicoAntigo = servicos[editandoIndex];
-
-    const { data, error } = await supabase
-      .from("servicos")
-      .update({
-        instrumento: servicoEditado.instrumento,
-        tempo: servicoEditado.tempo,
-        valor: servicoEditado.valor
-      })
-      .eq("id", servicoAntigo.id);
-
-    if (error) {
-      console.error("Erro ao atualizar no Supabase:", error);
-      return;
-    }
-
     const atualizados = [...servicos];
-    atualizados[editandoIndex] = { ...servicoAntigo, ...servicoEditado };
-    salvarServicos(atualizados);
+    atualizados[editandoIndex] = { ...servicoEditado };
+    salvarServicosLocal(atualizados); // atualiza apenas localmente por enquanto
+    setServicos(atualizados);
     setEditandoIndex(null);
     setServicoEditado(null);
   };
