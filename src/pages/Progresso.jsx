@@ -121,7 +121,7 @@ const Progresso = () => {
         onChange={(e) => setTexto(e.target.value)}
         placeholder="Digite a anotação"
         className="border p-2 w-full h-32 rounded"
-      />
+      /><br />
 
       <button
         onClick={salvarProgresso}
