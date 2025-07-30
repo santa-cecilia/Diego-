@@ -113,7 +113,7 @@ const Progresso = () => {
         {alunos.map((a, i) => (
           <option key={i} value={a}>{a}</option>
         ))}
-      </select>
+      </select><br />
       <br />
 
       <textarea
