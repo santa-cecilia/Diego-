@@ -114,6 +114,7 @@ const Progresso = () => {
           <option key={i} value={a}>{a}</option>
         ))}
       </select>
+      <br />
 
       <textarea
         value={texto}
