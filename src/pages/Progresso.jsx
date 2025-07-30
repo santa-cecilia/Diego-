@@ -1,112 +1,103 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../utils/supabase'; // Ajuste esse caminho se necessário
+import { supabase } from '../utils/supabase'; // ajuste o caminho conforme sua estrutura
 
 const Progresso = () => {
   const [alunos, setAlunos] = useState([]);
-  const [anotacoes, setAnotacoes] = useState({});
+  const [progresso, setProgresso] = useState({});
   const [alunoSelecionado, setAlunoSelecionado] = useState('');
   const [texto, setTexto] = useState('');
 
   useEffect(() => {
-    const carregarAlunos = async () => {
-      const { data, error } = await supabase.from('alunos').select('nome');
-      if (error) {
-        console.error('Erro ao carregar alunos:', error);
-        return;
-      }
-      const nomes = data.map((a) => a.nome);
-      setAlunos(nomes);
-    };
-
-    const carregarAnotacoes = async () => {
-      const { data, error } = await supabase.from('anotacoes').select('*');
-      if (error) {
-        console.error('Erro ao carregar anotações:', error);
-        return;
+    const carregarDados = async () => {
+      // Carrega alunos do Supabase
+      const { data: alunosData, error: alunosErro } = await supabase.from('alunos').select('nome');
+      if (!alunosErro && alunosData) {
+        const nomes = alunosData.map((a) => a.nome);
+        setAlunos(nomes);
       }
 
-      const agrupado = {};
-      data.forEach(({ nomeAluno, data, texto }) => {
-        if (!agrupado[nomeAluno]) agrupado[nomeAluno] = [];
-        agrupado[nomeAluno].push({ data, texto });
-      });
-
-      setAnotacoes(agrupado);
+      // Carrega anotações do Supabase
+      const { data: anotacoesData, error: anotacoesErro } = await supabase.from('anotacoes').select('*');
+      if (!anotacoesErro && anotacoesData) {
+        const agrupado = {};
+        anotacoesData.forEach(({ nomeAluno, data, texto }) => {
+          if (!agrupado[nomeAluno]) agrupado[nomeAluno] = [];
+          agrupado[nomeAluno].push({ data, texto });
+        });
+        setProgresso(agrupado);
+        localStorage.setItem('progresso', JSON.stringify(agrupado));
+      } else {
+        // fallback para localStorage se não carregar do Supabase
+        const salvo = JSON.parse(localStorage.getItem('progresso')) || {};
+        setProgresso(salvo);
+      }
     };
 
-    carregarAlunos();
-    carregarAnotacoes();
+    carregarDados();
   }, []);
 
-  const salvarAnotacao = async () => {
-    if (!alunoSelecionado || !texto.trim()) {
-      alert('Preencha todos os campos.');
-      return;
-    }
+  const salvarProgresso = async () => {
+    if (!alunoSelecionado || !texto.trim()) return;
 
-    const novaAnotacao = {
+    const novaEntrada = {
       nomeAluno: alunoSelecionado,
-      data: new Date().toISOString().split('T')[0], // formato YYYY-MM-DD
+      data: new Date().toISOString().split('T')[0],
       texto: texto.trim()
     };
 
-    const { error } = await supabase.from('anotacoes').insert([novaAnotacao]);
+    // Salva no Supabase
+    const { error } = await supabase.from('anotacoes').insert([novaEntrada]);
     if (error) {
-      console.error('Erro ao salvar anotação:', error);
-      alert('Erro ao salvar anotação');
-      return;
+      alert('Erro ao salvar no Supabase');
+      console.error(error);
     }
 
-    setAnotacoes((prev) => {
-      const atualizadas = { ...prev };
-      if (!atualizadas[alunoSelecionado]) atualizadas[alunoSelecionado] = [];
-      atualizadas[alunoSelecionado].push({
-        data: novaAnotacao.data,
-        texto: novaAnotacao.texto
-      });
-      return atualizadas;
-    });
-
+    // Atualiza local
+    const atual = { ...progresso };
+    if (!atual[alunoSelecionado]) atual[alunoSelecionado] = [];
+    atual[alunoSelecionado].push({ data: novaEntrada.data, texto: novaEntrada.texto });
+    setProgresso(atual);
+    localStorage.setItem('progresso', JSON.stringify(atual));
     setTexto('');
   };
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <h2 className="text-xl font-semibold mb-4 text-center">📚 Registro de Progresso</h2>
+    <div className="p-4">
+      <h2 className="text-lg font-bold mb-4">📝 Registro de Progresso</h2>
 
       <select
         value={alunoSelecionado}
         onChange={(e) => setAlunoSelecionado(e.target.value)}
-        className="border p-2 w-full mb-4 rounded"
+        className="border p-2 mb-4 w-full rounded"
       >
         <option value="">Selecione um aluno</option>
-        {alunos.map((nome, i) => (
-          <option key={i} value={nome}>{nome}</option>
+        {alunos.map((a, i) => (
+          <option key={i} value={a}>{a}</option>
         ))}
       </select>
 
       <textarea
         value={texto}
         onChange={(e) => setTexto(e.target.value)}
-        placeholder="Digite a anotação do progresso"
+        placeholder="Digite a anotação"
         className="border p-2 w-full h-32 rounded"
       />
 
       <button
-        onClick={salvarAnotacao}
-        className="bg-green-500 hover:bg-green-400 text-white font-bold py-2 px-4 rounded w-full mt-2"
+        onClick={salvarProgresso}
+        className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded mt-2 w-full"
       >
-        Salvar Progresso
+        Salvar
       </button>
 
-      {alunoSelecionado && anotacoes[alunoSelecionado]?.length > 0 && (
+      {alunoSelecionado && progresso[alunoSelecionado]?.length > 0 && (
         <div className="mt-6">
-          <h3 className="font-bold mb-2">Anotações anteriores:</h3>
+          <h3 className="font-semibold mb-2">Anotações anteriores:</h3>
           <ul className="space-y-2">
-            {anotacoes[alunoSelecionado]
+            {progresso[alunoSelecionado]
               .sort((a, b) => new Date(b.data) - new Date(a.data))
               .map((item, i) => (
-                <li key={i} className="bg-gray-100 p-2 rounded shadow">
+                <li key={i} className="bg-gray-100 p-2 rounded">
                   <p className="text-sm text-gray-600">📅 {item.data}</p>
                   <p>{item.texto}</p>
                 </li>
