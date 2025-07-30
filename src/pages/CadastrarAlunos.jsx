@@ -1,225 +1,166 @@
-import React, { useState, useEffect } from "react";
-import { supabase } from "../supabaseClient";
-import { FaTrash, FaEdit, FaUserGraduate } from "react-icons/fa";
-import * as XLSX from "xlsx";
+import React, { useState, useEffect } from 'react';
+import { saveAs } from 'file-saver';
+import * as XLSX from 'xlsx';
 
-function calcularIdade(dataNascimento) {
-  const hoje = new Date();
-  const nascimento = new Date(dataNascimento);
-  let idade = hoje.getFullYear() - nascimento.getFullYear();
-  const m = hoje.getMonth() - nascimento.getMonth();
-  if (m < 0 || (m === 0 && hoje.getDate() < nascimento.getDate())) {
-    idade--;
-  }
-  return idade;
-}
-
-export default function CadastrarAluno() {
+const CadastrarAlunos = () => {
   const [alunos, setAlunos] = useState([]);
-  const [nome, setNome] = useState("");
-  const [dataNascimento, setDataNascimento] = useState("");
-  const [nomePais, setNomePais] = useState("");
-  const [dataMatricula, setDataMatricula] = useState("");
-  const [filtroNome, setFiltroNome] = useState("");
-  const [editandoId, setEditandoId] = useState(null);
-  const [servicos, setServicos] = useState([]);
-  const [servicoSelecionado, setServicoSelecionado] = useState("");
-  const [servicoValor, setServicoValor] = useState("");
-  const [servicoTempo, setServicoTempo] = useState("");
+  const [aluno, setAluno] = useState({
+    nome: '',
+    nascimento: '',
+    pais: '',
+    servico: '',
+    valor: '',
+    tempo: '',
+    matricula: '',
+  });
+  const [idade, setIdade] = useState('');
+  const [busca, setBusca] = useState('');
+  const [editandoIndex, setEditandoIndex] = useState(null);
 
   useEffect(() => {
-    buscarAlunos();
-    buscarServicos();
+    const armazenados = JSON.parse(localStorage.getItem('alunos') || '[]');
+    setAlunos(armazenados);
   }, []);
 
-  async function buscarAlunos() {
-    const { data, error } = await supabase
-      .from("alunos")
-      .select("*")
-      .order("id", { ascending: false });
-    if (!error) setAlunos(data);
-  }
-
-  async function buscarServicos() {
-    const { data, error } = await supabase.from("servicos").select("*");
-    if (!error) setServicos(data);
-  }
-
-  async function adicionarAluno(e) {
-    e.preventDefault();
-    if (!nome || !dataNascimento || !nomePais || !dataMatricula || !servicoSelecionado) {
-      alert("Preencha todos os campos.");
-      return;
-    }
-
-    const servico = servicos.find((s) => s.nome === servicoSelecionado);
-
-    const novoAluno = {
-      nome,
-      data_nascimento: dataNascimento,
-      nome_pais: nomePais,
-      data_matricula: dataMatricula,
-      servico_nome: servicoSelecionado,
-      servico_valor: servico.valor,
-      servico_tempo: servico.tempo,
-    };
-
-    if (editandoId) {
-      await supabase.from("alunos").update(novoAluno).eq("id", editandoId);
-      setEditandoId(null);
+  useEffect(() => {
+    if (aluno.nascimento) {
+      const nasc = new Date(aluno.nascimento);
+      const hoje = new Date();
+      let anos = hoje.getFullYear() - nasc.getFullYear();
+      const m = hoje.getMonth() - nasc.getMonth();
+      if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) anos--;
+      setIdade(`${anos} anos`);
     } else {
-      await supabase.from("alunos").insert([novoAluno]);
+      setIdade('');
+    }
+  }, [aluno.nascimento]);
+
+  const salvarAlunos = (lista) => {
+    localStorage.setItem('alunos', JSON.stringify(lista));
+    setAlunos(lista);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!aluno.nome || !aluno.nascimento || !aluno.pais || !aluno.servico || !aluno.matricula) return;
+
+    if (editandoIndex !== null) {
+      const atualizados = [...alunos];
+      atualizados[editandoIndex] = aluno;
+      salvarAlunos(atualizados);
+      setEditandoIndex(null);
+    } else {
+      salvarAlunos([...alunos, aluno]);
     }
 
-    setNome("");
-    setDataNascimento("");
-    setNomePais("");
-    setDataMatricula("");
-    setServicoSelecionado("");
-    setServicoValor("");
-    setServicoTempo("");
-    buscarAlunos();
-  }
+    setAluno({ nome: '', nascimento: '', pais: '', servico: '', valor: '', tempo: '', matricula: '' });
+    setIdade('');
+  };
 
-  async function removerAluno(id) {
-    await supabase.from("alunos").delete().eq("id", id);
-    buscarAlunos();
-  }
+  const editarAluno = (index) => {
+    setAluno(alunos[index]);
+    setEditandoIndex(index);
+  };
 
-  function editarAluno(aluno) {
-    setNome(aluno.nome);
-    setDataNascimento(aluno.data_nascimento);
-    setNomePais(aluno.nome_pais);
-    setDataMatricula(aluno.data_matricula);
-    setServicoSelecionado(aluno.servico_nome);
-    setServicoValor(aluno.servico_valor);
-    setServicoTempo(aluno.servico_tempo);
-    setEditandoId(aluno.id);
-  }
+  const removerAluno = (index) => {
+    const confirm = window.confirm('Tem certeza que deseja remover este aluno?');
+    if (confirm) {
+      const atualizados = alunos.filter((_, i) => i !== index);
+      salvarAlunos(atualizados);
+    }
+  };
 
-  function exportarExcel() {
-    const dados = alunos.map((a) => ({
-      Nome: a.nome,
-      "Data de Nascimento": a.data_nascimento,
-      Idade: calcularIdade(a.data_nascimento),
-      "Nome dos Pais": a.nome_pais,
-      "Data da Matrícula": a.data_matricula,
-      "Serviço": a.servico_nome,
-      "Valor": a.servico_valor,
-      "Tempo": a.servico_tempo,
-    }));
-    const planilha = XLSX.utils.json_to_sheet(dados);
+  const exportarExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(alunos);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, planilha, "Alunos");
-    XLSX.writeFile(wb, "alunos.xlsx");
-  }
+    XLSX.utils.book_append_sheet(wb, ws, 'Alunos');
+    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
+    saveAs(blob, 'alunos.xlsx');
+  };
 
-  const alunosFiltrados = alunos.filter((a) =>
-    a.nome.toLowerCase().includes(filtroNome.toLowerCase())
+  const alunosFiltrados = alunos.filter(a =>
+    a.nome.toLowerCase().includes(busca.toLowerCase())
   );
 
-  useEffect(() => {
-    const servico = servicos.find((s) => s.nome === servicoSelecionado);
-    if (servico) {
-      setServicoValor(servico.valor);
-      setServicoTempo(servico.tempo);
-    }
-  }, [servicoSelecionado, servicos]);
-
   return (
-    <div className="p-4">
-      <h2 className="text-xl font-bold mb-4">🎓 Cadastro de Alunos</h2>
-      <form onSubmit={adicionarAluno} className="grid grid-cols-1 gap-2 md:grid-cols-2 mb-4">
+    <div className="p-4 max-w-3xl mx-auto">
+      <h2 className="text-2xl font-bold mb-4">👨‍🎓 Cadastro de Alunos</h2>
+      <form onSubmit={handleSubmit} className="space-y-3 bg-white p-4 rounded shadow">
         <input
           type="text"
           placeholder="Nome completo"
-          value={nome}
-          onChange={(e) => setNome(e.target.value)}
-          className="border p-2 rounded"
+          value={aluno.nome}
+          onChange={(e) => setAluno({ ...aluno, nome: e.target.value })}
+          className="w-full p-2 border rounded"
         />
         <input
           type="date"
-          placeholder="Data de nascimento"
-          value={dataNascimento}
-          onChange={(e) => setDataNascimento(e.target.value)}
-          className="border p-2 rounded"
+          value={aluno.nascimento}
+          onChange={(e) => setAluno({ ...aluno, nascimento: e.target.value })}
+          className="w-full p-2 border rounded"
         />
+        {idade && <p className="text-sm text-gray-600">Idade: {idade}</p>}
         <input
           type="text"
           placeholder="Nome dos pais"
-          value={nomePais}
-          onChange={(e) => setNomePais(e.target.value)}
-          className="border p-2 rounded"
+          value={aluno.pais}
+          onChange={(e) => setAluno({ ...aluno, pais: e.target.value })}
+          className="w-full p-2 border rounded"
+        />
+        <input
+          type="text"
+          placeholder="Serviço contratado"
+          value={aluno.servico}
+          onChange={(e) => setAluno({ ...aluno, servico: e.target.value })}
+          className="w-full p-2 border rounded"
         />
         <input
           type="date"
           placeholder="Data da matrícula"
-          value={dataMatricula}
-          onChange={(e) => setDataMatricula(e.target.value)}
-          className="border p-2 rounded"
+          value={aluno.matricula}
+          onChange={(e) => setAluno({ ...aluno, matricula: e.target.value })}
+          className="w-full p-2 border rounded"
         />
-        <select
-          value={servicoSelecionado}
-          onChange={(e) => setServicoSelecionado(e.target.value)}
-          className="border p-2 rounded"
-        >
-          <option value="">Selecione um serviço</option>
-          {servicos.map((servico) => (
-            <option key={servico.id} value={servico.nome}>
-              {servico.nome}
-            </option>
-          ))}
-        </select>
-        {servicoSelecionado && (
-          <div className="col-span-1 md:col-span-2">
-            <p>⏱ Tempo: {servicoTempo}</p>
-            <p>💰 Valor: R$ {servicoValor}</p>
-          </div>
-        )}
-        <button
-          type="submit"
-          className="bg-green-500 text-white px-4 py-2 rounded mt-2 col-span-1 md:col-span-2"
-        >
-          {editandoId ? "Salvar Alterações" : "Cadastrar Aluno"}
+        <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">
+          {editandoIndex !== null ? 'Salvar Edição' : 'Cadastrar'}
         </button>
       </form>
 
-      <div className="flex justify-between items-center mb-2">
+      <div className="mt-6">
+        <div className="flex justify-between items-center mb-2">
+          <span>🎯 Total de alunos: {alunos.length}</span>
+          <button onClick={exportarExcel} className="bg-green-600 text-white px-3 py-1 rounded">
+            Exportar Excel
+          </button>
+        </div>
         <input
           type="text"
-          placeholder="🔎 Buscar aluno..."
-          value={filtroNome}
-          onChange={(e) => setFiltroNome(e.target.value)}
-          className="border p-2 rounded w-full md:w-1/2"
+          placeholder="🔍 Buscar aluno pelo nome"
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          className="w-full p-2 border mb-4 rounded"
         />
-        <button
-          onClick={exportarExcel}
-          className="bg-blue-500 text-white px-4 py-2 rounded ml-2"
-        >
-          📁 Exportar Excel
-        </button>
-      </div>
 
-      <p className="mb-2">Total de alunos: {alunosFiltrados.length}</p>
+        {alunosFiltrados.length === 0 && (
+          <p className="text-center text-gray-500">Nenhum aluno encontrado.</p>
+        )}
 
-      <div className="space-y-2">
-        {alunosFiltrados.map((aluno) => (
-          <div key={aluno.id} className="border p-3 rounded flex justify-between items-start">
+        {alunosFiltrados.map((a, i) => (
+          <div key={i} className="border-b py-2 flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p>
-                <FaUserGraduate className="inline mr-1" />
-                <strong>{aluno.nome}</strong> ({calcularIdade(aluno.data_nascimento)} anos)
-              </p>
-              <p>👨‍👩‍👧 Pais: {aluno.nome_pais}</p>
-              <p>📅 Matrícula: {aluno.data_matricula}</p>
-              <p>🎵 Serviço: {aluno.servico_nome} - {aluno.servico_tempo} - R$ {aluno.servico_valor}</p>
+              <p>🧑 {a.nome}</p>
+              <p>🎂 {a.nascimento}</p>
+              <p>👪 {a.pais}</p>
+              <p>📅 Matrícula: {a.matricula}</p>
+              <p>🎼 Serviço: {a.servico}</p>
             </div>
-            <div className="flex space-x-2">
-              <button onClick={() => editarAluno(aluno)} className="text-blue-500">
-                <FaEdit />
+            <div className="mt-2 sm:mt-0 flex gap-2">
+              <button onClick={() => editarAluno(i)} className="bg-yellow-400 px-3 py-1 rounded text-white">
+                Editar
               </button>
-              <button onClick={() => removerAluno(aluno.id)} className="text-red-500">
-                <FaTrash />
+              <button onClick={() => removerAluno(i)} className="bg-red-500 px-3 py-1 rounded text-white">
+                Remover
               </button>
             </div>
           </div>
@@ -227,4 +168,6 @@ export default function CadastrarAluno() {
       </div>
     </div>
   );
-}
+};
+
+export default CadastrarAlunos;
