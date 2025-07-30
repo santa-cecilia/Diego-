@@ -6,7 +6,7 @@ import {
   salvarServico,
   atualizarServico,
   excluirServico,
-} from '..utils/supabase'; // Certifique-se que o caminho está correto
+} from 'src/utils/supabase'; // Certifique-se que o caminho está correto
 
 const Servicos = () => {
   const [servicos, setServicos] = useState([]);
