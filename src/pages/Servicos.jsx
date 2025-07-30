@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
+import {
+  carregarServicos,
+  salvarServico,
+  atualizarServico,
+  excluirServico,
+} from './supabase'; // Certifique-se que o caminho está correto
 
 const Servicos = () => {
   const [servicos, setServicos] = useState([]);
@@ -12,16 +18,14 @@ const Servicos = () => {
 
   const instrumentos = ['Violão', 'Violino', 'Piano', 'Teclado', 'Canto'];
 
+  // 🚀 Carrega dados da nuvem ao iniciar
   useEffect(() => {
-    const dadosSalvos = localStorage.getItem('servicos');
-    if (dadosSalvos) {
-      setServicos(JSON.parse(dadosSalvos));
-    }
+    const fetchData = async () => {
+      const dados = await carregarServicos();
+      setServicos(dados);
+    };
+    fetchData();
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem('servicos', JSON.stringify(servicos));
-  }, [servicos]);
 
   const limparCampos = () => {
     setInstrumento('');
@@ -30,28 +34,39 @@ const Servicos = () => {
     setEditIndex(null);
   };
 
-  const adicionarOuEditarServico = () => {
+  const adicionarOuEditarServico = async () => {
     if (!instrumento || !tempo || !valor) return;
-
     const novoServico = { instrumento, tempo, valor };
 
     if (editIndex !== null) {
-      const atualizados = [...servicos];
-      atualizados[editIndex] = novoServico;
-      setServicos(atualizados);
+      // Atualizar
+      const servicoAtual = servicos[editIndex];
+      const atualizado = { ...servicoAtual, ...novoServico };
+      const res = await atualizarServico(atualizado);
+      if (res.success) {
+        setServicos((prev) =>
+          prev.map((s, i) => (i === editIndex ? atualizado : s))
+        );
+      }
     } else {
-      setServicos([...servicos, novoServico]);
+      // Salvar novo
+      const res = await salvarServico(novoServico);
+      if (res.success) {
+        setServicos(res.data);
+      }
     }
 
     limparCampos();
   };
 
-  const removerServico = (index) => {
+  const removerServico = async (index) => {
     const confirmacao = window.confirm('Deseja remover este serviço?');
     if (confirmacao) {
-      const atualizados = [...servicos];
-      atualizados.splice(index, 1);
-      setServicos(atualizados);
+      const id = servicos[index].id;
+      const res = await excluirServico(id);
+      if (res.success) {
+        setServicos(servicos.filter((_, i) => i !== index));
+      }
     }
   };
 
@@ -141,7 +156,7 @@ const Servicos = () => {
         </thead>
         <tbody>
           {servicosFiltrados.map((servico, index) => (
-            <tr key={index}>
+            <tr key={servico.id || index}>
               <td className="border p-2">{servico.instrumento}</td>
               <td className="border p-2">{servico.tempo}</td>
               <td className="border p-2">R$ {parseFloat(servico.valor).toFixed(2)}</td>
