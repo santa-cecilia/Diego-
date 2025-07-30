@@ -1,28 +1,41 @@
 import React, { useEffect, useState } from 'react';
-import './Agenda.css'; // <- Importa o CSS manual que vamos criar
+import './Agenda.css'; // <- Certifique-se de manter esse CSS
+import { supabase } from '../utils/supabase'; // ajuste o caminho conforme sua pasta
 
 const Agenda = () => {
   const diasSemana = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
   const [agenda, setAgenda] = useState({});
 
   useEffect(() => {
-    const alunosSalvos = JSON.parse(localStorage.getItem('alunos')) || [];
-    const novaAgenda = {};
+    const carregarAgenda = async () => {
+      const { data: alunosSalvos, error } = await supabase
+        .from('alunos')
+        .select('nome, diaSemana, horario');
 
-    alunosSalvos.forEach((aluno) => {
-      const dia = aluno.diaSemana;
-      const horario = aluno.horario;
+      if (error) {
+        console.error('Erro ao carregar alunos do Supabase:', error);
+        return;
+      }
 
-      if (!dia || !horario) return;
+      const novaAgenda = {};
 
-      if (!novaAgenda[horario]) novaAgenda[horario] = {};
-      if (!novaAgenda[horario][dia]) novaAgenda[horario][dia] = [];
+      alunosSalvos.forEach((aluno) => {
+        const dia = aluno.diaSemana;
+        const horario = aluno.horario;
 
-      const primeiroNome = aluno.nome?.split(' ')[0] || '';
-      novaAgenda[horario][dia].push(primeiroNome);
-    });
+        if (!dia || !horario) return;
 
-    setAgenda(novaAgenda);
+        if (!novaAgenda[horario]) novaAgenda[horario] = {};
+        if (!novaAgenda[horario][dia]) novaAgenda[horario][dia] = [];
+
+        const primeiroNome = aluno.nome?.split(' ')[0] || '';
+        novaAgenda[horario][dia].push(primeiroNome);
+      });
+
+      setAgenda(novaAgenda);
+    };
+
+    carregarAgenda();
   }, []);
 
   const horariosUnicos = Object.keys(agenda).sort((a, b) => a.localeCompare(b));
