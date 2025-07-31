@@ -92,7 +92,7 @@ export default function Pagamentos() {
 
         return {
           ...p,
-          p: id || Date.now(),
+          id: p.id || Date.now(),
           valor,
           valor_final: valorFinal,
         };
