@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
-import { supabase } from "../supabase"; // <-- ADICIONADO
+import { supabase } from "../supabase";
 
 export default function Pagamentos() {
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -16,31 +16,29 @@ export default function Pagamentos() {
   const [filtroNaoPagos, setFiltroNaoPagos] = useState(false);
 
   useEffect(() => {
-    const alunosSalvos = JSON.parse(localStorage.getItem("alunos")) || [];
-    const servicosSalvos = JSON.parse(localStorage.getItem("servicos")) || [];
-    const pagamentosSalvos = JSON.parse(localStorage.getItem("pagamentos")) || [];
-    const financeirosSalvos = JSON.parse(localStorage.getItem("financeiros")) || [];
+    async function carregarDados() {
+      const { data: alunosData } = await supabase.from("alunos").select("*");
+      const { data: servicosData } = await supabase.from("servicos").select("*");
+      const { data: pagamentosData } = await supabase.from("pagamentos").select("*");
+      const { data: financeirosData } = await supabase.from("financeiros").select("*");
 
-    setAlunos(alunosSalvos);
-    setServicos(servicosSalvos);
-    setPayments(pagamentosSalvos);
-    setFinanceiros(financeirosSalvos);
+      setAlunos(alunosData || []);
+      setServicos(servicosData || []);
+      setPayments(pagamentosData || []);
+      setFinanceiros(financeirosData || []);
+    }
+
+    carregarDados();
   }, []);
 
   async function salvarNoSupabase(pagamentosAtualizados, financeirosAtualizados) {
-    try {
-      await supabase.from("pagamentos").upsert(pagamentosAtualizados, { onConflict: ["nomeAluno", "month"] });
-      await supabase.from("financeiros").upsert(financeirosAtualizados, { onConflict: ["id"] });
-    } catch (error) {
-      console.error("Erro ao salvar no Supabase:", error);
-    }
+    await supabase.from("pagamentos").upsert(pagamentosAtualizados, { onConflict: ["nomeAluno", "month"] });
+    await supabase.from("financeiros").upsert(financeirosAtualizados, { onConflict: ["id"] });
   }
 
   function updatePayment(nomeAluno, month, newData) {
     setPayments((prev) => {
-      const idx = prev.findIndex(
-        (p) => p.nomeAluno === nomeAluno && p.month === month
-      );
+      const idx = prev.findIndex(p => p.nomeAluno === nomeAluno && p.month === month);
       let updated;
       if (idx >= 0) {
         const copy = [...prev];
@@ -49,7 +47,6 @@ export default function Pagamentos() {
       } else {
         updated = [...prev, { nomeAluno, month, ...newData }];
       }
-      localStorage.setItem("pagamentos", JSON.stringify(updated));
       salvarNoSupabase(updated, financeiros);
       return updated;
     });
@@ -63,9 +60,7 @@ export default function Pagamentos() {
   }
 
   function handleTogglePaid(nomeAluno) {
-    const pagamento = payments.find(
-      (p) => p.nomeAluno === nomeAluno && p.month === selectedMonth
-    );
+    const pagamento = payments.find(p => p.nomeAluno === nomeAluno && p.month === selectedMonth);
     updatePayment(nomeAluno, selectedMonth, {
       paid: !(pagamento?.paid ?? false),
       paymentDate:
@@ -82,7 +77,6 @@ export default function Pagamentos() {
   function handleNoteChange(nomeAluno, value) {
     updatePayment(nomeAluno, selectedMonth, { note: value });
   }
-
   function adicionarFinanceiro(tipo) {
     const valor = prompt(`Digite o valor da ${tipo.toLowerCase()}:`);
     if (!valor) return;
@@ -102,7 +96,6 @@ export default function Pagamentos() {
     };
     setFinanceiros((prev) => {
       const atualizados = [...prev, novoRegistro];
-      localStorage.setItem("financeiros", JSON.stringify(atualizados));
       salvarNoSupabase(payments, atualizados);
       return atualizados;
     });
@@ -124,7 +117,6 @@ export default function Pagamentos() {
           ? { ...f, valor: numero, descricao: novaDescricao || "" }
           : f
       );
-      localStorage.setItem("financeiros", JSON.stringify(atualizados));
       salvarNoSupabase(payments, atualizados);
       return atualizados;
     });
@@ -134,15 +126,14 @@ export default function Pagamentos() {
     if (!window.confirm("Deseja excluir este lançamento?")) return;
     setFinanceiros((prev) => {
       const atualizados = prev.filter((f) => f.id !== id);
-      localStorage.setItem("financeiros", JSON.stringify(atualizados));
-      salvarNoSupabase(payments, atualizados);
+      supabase.from("financeiros").delete().eq("id", id);
       return atualizados;
     });
   }
 
   const listaFinal = alunos.map((aluno) => {
-    const valorFormatado = aluno.servico?.replace("R$ ", "").replace(",", ".") ?? "0";
-    const valor = parseFloat(valorFormatado) || 0;
+    const servico = servicos.find(s => s.nome === aluno.servico);
+    const valor = parseFloat(servico?.valor || 0);
     const pagamento = payments.find(
       (p) => p.nomeAluno === aluno.nome && p.month === selectedMonth
     );
