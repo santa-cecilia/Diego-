@@ -132,8 +132,8 @@ export default function Pagamentos() {
   }
 
   const listaFinal = alunos.map((aluno) => {
-    const servico = servicos.find(s => s.nome === aluno.servico);
-    const valor = parseFloat(servico?.valor || 0);
+    const valor = parseFloat(aluno.servico?.replace("R$ ", "").replace(",", ".") || 0);
+
     const pagamento = payments.find(
       (p) => p.nomeAluno === aluno.nome && p.month === selectedMonth
     );
