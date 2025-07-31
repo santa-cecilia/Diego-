@@ -84,9 +84,9 @@ export default function Pagamentos() {
   }
 
   // Função para salvar todas as alterações de payments no banco de dados
-  async function salvarAlteracoes() {
-    if (payments.length === 0) {
-      alert("Nada para salvar.");
+  await supabase
+  .from("pagamentos")
+  .upsert(dados, { onConflict: ["nome_aluno", "mes"] });
       return;
     }
 
