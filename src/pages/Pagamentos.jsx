@@ -31,19 +31,26 @@ export default function Pagamentos() {
   function updatePayment(nomeAluno, month, newData) {
     setPayments((prev) => {
       const idx = prev.findIndex(p => p.nomeAluno === nomeAluno && p.month === month);
-      let updated;
+      let atual;
       if (idx >= 0) {
-        const copy = [...prev];
-        copy[idx] = { ...copy[idx], ...newData };
-        updated = copy;
+        atual = { ...prev[idx], ...newData };
       } else {
-        updated = [...prev, { nomeAluno, month, ...newData }];
+        atual = {
+          nomeAluno,
+          month,
+          discountPercent: 0,
+          paid: false,
+          paymentDate: "",
+          note: "",
+          ...newData,
+        };
       }
 
-      // Salva apenas o item alterado no Supabase
-      supabase.from("pagamentos").upsert([{ nomeAluno, month, ...newData }], {
-        onConflict: ["nomeAluno", "month"]
-      });
+      const updated = idx >= 0
+        ? [...prev.slice(0, idx), atual, ...prev.slice(idx + 1)]
+        : [...prev, atual];
+
+      supabase.from("pagamentos").upsert([atual], { onConflict: ["nomeAluno", "month"] });
 
       return updated;
     });
@@ -331,3 +338,4 @@ export default function Pagamentos() {
     </div>
   );
 }
+
