@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
-import { supabase } from "../supabase";
+import { supabase } from "../utils/supabase";
 
 export default function Pagamentos() {
   const [selectedMonth, setSelectedMonth] = useState(() => {
