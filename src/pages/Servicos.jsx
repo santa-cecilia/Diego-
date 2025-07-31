@@ -93,7 +93,7 @@ const Servicos = () => {
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <h2 className="text-2xl font-bold mb-4">🎵 Cadastro de Serviços</h2>
+      <h2 className="text-2xl font-bold mb-4">Cadastro de Serviços</h2>
 
       <div className="grid grid-cols-1 gap-2 mb-4">
         <select
