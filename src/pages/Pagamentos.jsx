@@ -28,7 +28,6 @@ export default function Pagamentos() {
     carregarDados();
   }, []);
 
-  // Atualiza o estado local payments, sem salvar no banco imediatamente
   function updatePayment(nomeAluno, month, newData) {
     setPayments((prev) => {
       const idx = prev.findIndex(p => p.nomeAluno === nomeAluno && p.month === month);
@@ -50,8 +49,6 @@ export default function Pagamentos() {
       const updated = idx >= 0
         ? [...prev.slice(0, idx), atual, ...prev.slice(idx + 1)]
         : [...prev, atual];
-
-      // REMOVIDO: supabase.from("pagamentos").upsert([atual], { onConflict: ["nomeAluno", "month"] });
 
       return updated;
     });
@@ -83,21 +80,32 @@ export default function Pagamentos() {
     updatePayment(nomeAluno, selectedMonth, { note: value });
   }
 
-  // Função para salvar todas as alterações de payments no banco de dados
-  await supabase
-  .from("pagamentos")
-  .upsert(dados, { onConflict: ["nome_aluno", "mes"] });
-      return;
-    }
+  async function salvarAlteracoes() {
+    const toSave = payments
+      .filter((p) => p.month === selectedMonth)
+      .map((p) => {
+        const aluno = alunos.find((a) => a.nome === p.nomeAluno);
+        const valor = parseFloat(
+          aluno?.servico?.replace("R$ ", "").replace(",", ".") || 0
+        );
+        const valorFinal = valor * (1 - (p.discountPercent || 0) / 100);
 
-    const toSave = payments.filter(p => p.month === selectedMonth);
+        return {
+          ...p,
+          valor,
+          valor_final: valorFinal,
+        };
+      });
+
     if (toSave.length === 0) {
       alert("Nenhuma alteração para salvar neste mês.");
       return;
     }
 
-    // Salva no supabase usando upsert com onConflict
-    const { error } = await supabase.from("pagamentos").upsert(toSave, { onConflict: ["nomeAluno", "month"] });
+    const { error } = await supabase
+      .from("pagamentos")
+      .upsert(toSave, { onConflict: ["nomeAluno", "month"] });
+
     if (error) {
       alert("Erro ao salvar alterações: " + error.message);
     } else {
@@ -241,8 +249,6 @@ export default function Pagamentos() {
             <button onClick={exportarExcel} style={{ marginLeft: 10 }}>
               📥 Exportar Excel
             </button>
-
-            {/* Botão novo para salvar alterações */}
             <button
               onClick={salvarAlteracoes}
               style={{ marginLeft: 10, backgroundColor: "#4caf50", color: "white" }}
