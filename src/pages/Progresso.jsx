@@ -102,7 +102,7 @@ const Progresso = () => {
 
   return (
     <div className="p-4">
-      <h2 className="text-lg font-bold mb-4">📝 Registro de Progresso</h2>
+      <h2 className="text-lg font-bold mb-4">Anotações</h2>
 
       <select
         value={alunoSelecionado}
