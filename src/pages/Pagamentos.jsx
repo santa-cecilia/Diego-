@@ -114,7 +114,7 @@ export default function Pagamentos() {
     }
   }
 
-  function adicionarFinanceiro(tipo) {
+  async function adicionarFinanceiro(tipo) {
     const valor = prompt(`Digite o valor da ${tipo.toLowerCase()}:`);
     if (!valor) return;
     const numero = parseFloat(valor.replace(",", "."));
@@ -123,20 +123,25 @@ export default function Pagamentos() {
       return;
     }
     const descricao = prompt(`Digite a descrição da ${tipo.toLowerCase()}:`) || "";
+
     const novoRegistro = {
-      id: Date.now(),
       tipo,
       valor: numero,
       descricao,
       data: new Date().toISOString().slice(0, 10),
       mes: selectedMonth,
     };
-    const atualizados = [...financeiros, novoRegistro];
-    setFinanceiros(atualizados);
-    supabase.from("financeiros").upsert(atualizados, { onConflict: ["id"] });
+
+    const { data, error } = await supabase.from("financeiros").insert([novoRegistro]);
+    if (error) {
+      alert("Erro ao salvar registro financeiro: " + error.message);
+      return;
+    }
+
+    setFinanceiros((prev) => [...prev, data[0]]);
   }
 
-  function editarFinanceiro(id) {
+  async function editarFinanceiro(id) {
     const item = financeiros.find(f => f.id === id);
     if (!item) return;
 
@@ -146,20 +151,32 @@ export default function Pagamentos() {
     const numero = parseFloat(novoValor.replace(",", "."));
     if (isNaN(numero) || numero <= 0) return;
 
-    const atualizados = financeiros.map((f) =>
-      f.id === id
-        ? { ...f, valor: numero, descricao: novaDescricao || "" }
-        : f
+    const { data, error } = await supabase
+      .from("financeiros")
+      .update({ valor: numero, descricao: novaDescricao || "" })
+      .eq("id", id)
+      .select();
+
+    if (error) {
+      alert("Erro ao editar registro: " + error.message);
+      return;
+    }
+
+    setFinanceiros((prev) =>
+      prev.map((f) => (f.id === id ? data[0] : f))
     );
-    setFinanceiros(atualizados);
-    supabase.from("financeiros").upsert(atualizados, { onConflict: ["id"] });
   }
 
-  function excluirFinanceiro(id) {
+  async function excluirFinanceiro(id) {
     if (!window.confirm("Deseja excluir este lançamento?")) return;
-    const atualizados = financeiros.filter((f) => f.id !== id);
-    setFinanceiros(atualizados);
-    supabase.from("financeiros").delete().eq("id", id);
+
+    const { error } = await supabase.from("financeiros").delete().eq("id", id);
+    if (error) {
+      alert("Erro ao excluir registro: " + error.message);
+      return;
+    }
+
+    setFinanceiros((prev) => prev.filter((f) => f.id !== id));
   }
 
   const listaFinal = alunos.map((aluno) => {
