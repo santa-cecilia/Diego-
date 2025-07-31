@@ -4,69 +4,59 @@ import { saveAs } from "file-saver";
 import { supabase } from "../utils/supabase";
 
 export default function Pagamentos() {
-  const hoje = new Date();
-  const [selectedMonth, setSelectedMonth] = useState(
-    `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`
-  );
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const hoje = new Date();
+    return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
+  });
   const [alunos, setAlunos] = useState([]);
   const [payments, setPayments] = useState([]);
   const [financeiros, setFinanceiros] = useState([]);
   const [buscaAluno, setBuscaAluno] = useState("");
   const [filtroNaoPagos, setFiltroNaoPagos] = useState(false);
 
-  // Carrega dados na inicialização
   useEffect(() => {
     async function carregarDados() {
-      try {
-        const [{ data: alunosData }, { data: pagamentosData }, { data: financeirosData }] =
-          await Promise.all([
-            supabase.from("alunos").select("*"),
-            supabase.from("pagamentos").select("*"),
-            supabase.from("financeiros").select("*"),
-          ]);
+      const { data: alunosData } = await supabase.from("alunos").select("*");
+      const { data: pagamentosData } = await supabase.from("pagamentos").select("*");
+      const { data: financeirosData } = await supabase.from("financeiros").select("*");
 
-        setAlunos(alunosData || []);
-        setPayments(pagamentosData || []);
-        setFinanceiros(financeirosData || []);
-      } catch (error) {
-        console.error("Erro ao carregar dados:", error);
-      }
+      setAlunos(alunosData || []);
+      setPayments(pagamentosData || []);
+      setFinanceiros(financeirosData || []);
     }
+
     carregarDados();
   }, []);
 
-  // Atualiza pagamento e salva no Supabase
-  async function updatePayment(nomeAluno, month, newData) {
+  // Atualiza o estado local payments, sem salvar no banco imediatamente
+  function updatePayment(nomeAluno, month, newData) {
     setPayments((prev) => {
-      const idx = prev.findIndex((p) => p.nomeAluno === nomeAluno && p.month === month);
-      const atual = idx >= 0
-        ? { ...prev[idx], ...newData }
-        : {
-            nomeAluno,
-            month,
-            discountPercent: 0,
-            paid: false,
-            paymentDate: "",
-            note: "",
-            ...newData,
-          };
+      const idx = prev.findIndex(p => p.nomeAluno === nomeAluno && p.month === month);
+      let atual;
+      if (idx >= 0) {
+        atual = { ...prev[idx], ...newData };
+      } else {
+        atual = {
+          nomeAluno,
+          month,
+          discountPercent: 0,
+          paid: false,
+          paymentDate: "",
+          note: "",
+          ...newData,
+        };
+      }
 
       const updated = idx >= 0
         ? [...prev.slice(0, idx), atual, ...prev.slice(idx + 1)]
         : [...prev, atual];
 
-      supabase
-        .from("pagamentos")
-        .upsert([atual], { onConflict: ["nomeAluno", "month"] })
-        .then(({ error }) => {
-          if (error) console.error("Erro ao salvar pagamento:", error);
-        });
+      // REMOVIDO: supabase.from("pagamentos").upsert([atual], { onConflict: ["nomeAluno", "month"] });
 
       return updated;
     });
   }
 
-  // Funções de manipulação dos pagamentos
   function handleDiscountChange(nomeAluno, value) {
     const desconto = Number(value);
     updatePayment(nomeAluno, selectedMonth, {
@@ -75,7 +65,7 @@ export default function Pagamentos() {
   }
 
   function handleTogglePaid(nomeAluno) {
-    const pagamento = payments.find((p) => p.nomeAluno === nomeAluno && p.month === selectedMonth);
+    const pagamento = payments.find(p => p.nomeAluno === nomeAluno && p.month === selectedMonth);
     updatePayment(nomeAluno, selectedMonth, {
       paid: !(pagamento?.paid ?? false),
       paymentDate:
@@ -93,13 +83,36 @@ export default function Pagamentos() {
     updatePayment(nomeAluno, selectedMonth, { note: value });
   }
 
-  // Funções financeiro
-  async function adicionarFinanceiro(tipo) {
+  // Função para salvar todas as alterações de payments no banco de dados
+  async function salvarAlteracoes() {
+    if (payments.length === 0) {
+      alert("Nada para salvar.");
+      return;
+    }
+
+    const toSave = payments.filter(p => p.month === selectedMonth);
+    if (toSave.length === 0) {
+      alert("Nenhuma alteração para salvar neste mês.");
+      return;
+    }
+
+    // Salva no supabase usando upsert com onConflict
+    const { error } = await supabase.from("pagamentos").upsert(toSave, { onConflict: ["nomeAluno", "month"] });
+    if (error) {
+      alert("Erro ao salvar alterações: " + error.message);
+    } else {
+      alert("Alterações salvas com sucesso!");
+    }
+  }
+
+  function adicionarFinanceiro(tipo) {
     const valor = prompt(`Digite o valor da ${tipo.toLowerCase()}:`);
     if (!valor) return;
     const numero = parseFloat(valor.replace(",", "."));
-    if (isNaN(numero) || numero <= 0) return alert("Valor inválido.");
-
+    if (isNaN(numero) || numero <= 0) {
+      alert("Valor inválido.");
+      return;
+    }
     const descricao = prompt(`Digite a descrição da ${tipo.toLowerCase()}:`) || "";
     const novoRegistro = {
       id: Date.now(),
@@ -109,62 +122,43 @@ export default function Pagamentos() {
       data: new Date().toISOString().slice(0, 10),
       mes: selectedMonth,
     };
-
-    setFinanceiros((prev) => [...prev, novoRegistro]);
-
-    const { error } = await supabase.from("financeiros").upsert([novoRegistro]);
-    if (error) console.error("Erro ao salvar financeiro:", error);
+    const atualizados = [...financeiros, novoRegistro];
+    setFinanceiros(atualizados);
+    supabase.from("financeiros").upsert(atualizados, { onConflict: ["id"] });
   }
 
-  async function editarFinanceiro(id) {
-    const item = financeiros.find((f) => f.id === id);
+  function editarFinanceiro(id) {
+    const item = financeiros.find(f => f.id === id);
     if (!item) return;
 
     const novoValor = prompt("Novo valor:", item.valor);
+    const novaDescricao = prompt("Nova descrição:", item.descricao);
     if (!novoValor) return;
     const numero = parseFloat(novoValor.replace(",", "."));
     if (isNaN(numero) || numero <= 0) return;
 
-    const novaDescricao = prompt("Nova descrição:", item.descricao) || "";
-
     const atualizados = financeiros.map((f) =>
-      f.id === id ? { ...f, valor: numero, descricao: novaDescricao } : f
+      f.id === id
+        ? { ...f, valor: numero, descricao: novaDescricao || "" }
+        : f
     );
     setFinanceiros(atualizados);
-
-    const { error } = await supabase.from("financeiros").upsert(atualizados);
-    if (error) console.error("Erro ao editar financeiro:", error);
+    supabase.from("financeiros").upsert(atualizados, { onConflict: ["id"] });
   }
 
-  async function excluirFinanceiro(id) {
+  function excluirFinanceiro(id) {
     if (!window.confirm("Deseja excluir este lançamento?")) return;
     const atualizados = financeiros.filter((f) => f.id !== id);
     setFinanceiros(atualizados);
-
-    const { error } = await supabase.from("financeiros").delete().eq("id", id);
-    if (error) console.error("Erro ao excluir financeiro:", error);
+    supabase.from("financeiros").delete().eq("id", id);
   }
 
-  // Salvar tudo manualmente
-  async function salvarTudo() {
-    try {
-      if (payments.length > 0) {
-        await supabase.from("pagamentos").upsert(payments, { onConflict: ["nomeAluno", "month"] });
-      }
-      if (financeiros.length > 0) {
-        await supabase.from("financeiros").upsert(financeiros, { onConflict: ["id"] });
-      }
-      alert("✅ Dados salvos com sucesso!");
-    } catch (error) {
-      console.error("Erro ao salvar tudo:", error);
-      alert("Erro ao salvar os dados.");
-    }
-  }
-
-  // Dados processados para renderizar e resumo
   const listaFinal = alunos.map((aluno) => {
     const valor = parseFloat(aluno.servico?.replace("R$ ", "").replace(",", ".") || 0);
-    const pagamento = payments.find((p) => p.nomeAluno === aluno.nome && p.month === selectedMonth);
+    const pagamento = payments.find(
+      (p) => p.nomeAluno === aluno.nome && p.month === selectedMonth
+    );
+
     return {
       nome: aluno.nome,
       valor,
@@ -175,9 +169,9 @@ export default function Pagamentos() {
     };
   });
 
-  const valoresMes = financeiros.filter((f) => f.mes === selectedMonth);
-  const totalReceitasExtras = valoresMes.filter((f) => f.tipo === "Receita").reduce((sum, f) => sum + f.valor, 0);
-  const totalDespesasExtras = valoresMes.filter((f) => f.tipo === "Despesa").reduce((sum, f) => sum + f.valor, 0);
+  const valoresMes = financeiros.filter(f => f.mes === selectedMonth);
+  const totalReceitasExtras = valoresMes.filter(f => f.tipo === "Receita").reduce((sum, f) => sum + f.valor, 0);
+  const totalDespesasExtras = valoresMes.filter(f => f.tipo === "Despesa").reduce((sum, f) => sum + f.valor, 0);
 
   const resumo = listaFinal.reduce(
     (acc, aluno) => {
@@ -190,27 +184,25 @@ export default function Pagamentos() {
     { valorTotal: 0, descontoTotal: 0, recebidoTotal: 0 }
   );
 
-  resumo.recebidoTotal += totalReceitasExtras - totalDespesasExtras;
+  resumo.recebidoTotal += totalReceitasExtras;
+  resumo.recebidoTotal -= totalDespesasExtras;
 
   function mostrarResumoFinanceiroDetalhado() {
-    const historico = valoresMes.map(
-      (f, i) => `${i + 1}. [${f.tipo}] R$ ${f.valor.toFixed(2)} - ${f.descricao || "Sem descrição"} - ${f.data}`
-    );
+    const historico = valoresMes.map((f, i) => `${i + 1}. [${f.tipo}] R$ ${f.valor.toFixed(2)} - ${f.descricao || "Sem descrição"} - ${f.data}`);
     alert(`Histórico Financeiro - ${selectedMonth}:\n\n${historico.join("\n") || "Nenhum lançamento."}`);
   }
 
-  // Exportar para Excel
   function exportarExcel() {
     const dados = listaFinal.map((aluno) => {
       const descontoReais = aluno.valor * (aluno.discountPercent / 100);
       return {
         Aluno: aluno.nome,
-        Valor: aluno.valor.toFixed(2),
+        Valor: aluno.valor,
         DescontoPercentual: `${aluno.discountPercent}%`,
         DescontoReais: descontoReais.toFixed(2),
         ValorFinal: (aluno.valor - descontoReais).toFixed(2),
         Pago: aluno.paid ? "Sim" : "Não",
-        DataPagamento: aluno.paymentDate ? aluno.paymentDate.split("-").reverse().join("/") : "",
+        DataPagamento: aluno.paymentDate,
         Observação: aluno.note,
       };
     });
@@ -218,10 +210,162 @@ export default function Pagamentos() {
     const ws = XLSX.utils.json_to_sheet(dados);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Pagamentos");
+
     const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    saveAs(new Blob([excelBuffer], { type: "application/octet-stream" }), `Pagamentos_${selectedMonth}.xlsx`);
+    const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
+    saveAs(blob, `Pagamentos_${selectedMonth}.xlsx`);
   }
 
-  // Renderização
   return (
-    <
+    <div style={{ padding: "20px" }}>
+      <h2>Pagamentos</h2>
+      <label>
+        Selecione o mês:{" "}
+        <input
+          type="month"
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(e.target.value)}
+        />
+      </label>
+
+      {selectedMonth && (
+        <>
+          <div style={{ marginTop: 20, marginBottom: 20 }}>
+            <button onClick={() => adicionarFinanceiro("Receita")}>Incluir Receita</button>
+            <button onClick={() => adicionarFinanceiro("Despesa")} style={{ marginLeft: 10 }}>
+              Incluir Despesa
+            </button>
+            <button onClick={mostrarResumoFinanceiroDetalhado} style={{ marginLeft: 10 }}>
+              Resumo Financeiro
+            </button>
+            <button onClick={exportarExcel} style={{ marginLeft: 10 }}>
+              📥 Exportar Excel
+            </button>
+
+            {/* Botão novo para salvar alterações */}
+            <button
+              onClick={salvarAlteracoes}
+              style={{ marginLeft: 10, backgroundColor: "#4caf50", color: "white" }}
+            >
+              💾 Salvar Alterações
+            </button>
+          </div>
+
+          <div style={{ marginTop: 10 }}>
+            <input
+              type="text"
+              placeholder="🔍 Buscar aluno..."
+              value={buscaAluno}
+              onChange={(e) => setBuscaAluno(e.target.value)}
+              style={{ padding: "8px", width: "100%", maxWidth: "300px", borderRadius: "5px", border: "1px solid #ccc" }}
+            />
+            <label style={{ marginLeft: 20 }}>
+              <input
+                type="checkbox"
+                checked={filtroNaoPagos}
+                onChange={() => setFiltroNaoPagos(!filtroNaoPagos)}
+              /> Mostrar apenas não pagantes
+            </label>
+          </div>
+
+          <div style={{ marginBottom: "20px", background: "#f5f5f5", padding: "10px", borderRadius: "5px" }}>
+            <strong>Resumo Financeiro - {selectedMonth}</strong><br />
+            Base💲:<strong> R$ {resumo.valorTotal.toFixed(2)}</strong><br />
+            EMSC:<strong> R$ {resumo.descontoTotal.toFixed(2)}</strong><br />
+            VALOR RECEBIDO:<strong> R$ {resumo.recebidoTotal.toFixed(2)}</strong><br />
+            ✔️:<strong> R$ {totalReceitasExtras.toFixed(2)}</strong>
+            🔻:<strong> R$ {totalDespesasExtras.toFixed(2)}</strong>
+          </div>
+
+          <table border="1" cellPadding="4" style={{ width: "100%", borderCollapse: "separate" }}>
+            <thead>
+              <tr>
+                <th>Aluno</th>
+                <th>Valor</th>
+                <th>Desconto %</th>
+                <th>Valor Final</th>
+                <th>Pago</th>
+                <th>Data Pagamento</th>
+                <th>Observação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {listaFinal
+                .filter((item) => item.nome.toLowerCase().includes(buscaAluno.toLowerCase()))
+                .filter((item) => !filtroNaoPagos || !item.paid)
+                .map((item) => (
+                  <tr key={item.nome}>
+                    <td>{item.nome}</td>
+                    <td>R$ {item.valor.toFixed(2)}</td>
+                    <td>
+                      <input
+                        type="number"
+                        value={item.discountPercent}
+                        min="0"
+                        max="100"
+                        onChange={(e) => handleDiscountChange(item.nome, e.target.value)}
+                        style={{ width: "40px" }}
+                      />
+                    </td>
+                    <td>R$ {(item.valor * (1 - item.discountPercent / 100)).toFixed(2)}</td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={item.paid}
+                        onChange={() => handleTogglePaid(item.nome)}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="date"
+                        value={item.paymentDate}
+                        onChange={(e) => handlePaymentDateChange(item.nome, e.target.value)}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        value={item.note}
+                        onChange={(e) => handleNoteChange(item.nome, e.target.value)}
+                      />
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+
+          {valoresMes.length > 0 && (
+            <div style={{ marginTop: "20px" }}>
+              <h3>Lançamentos - {selectedMonth}</h3>
+              <table border="1" cellPadding="5" style={{ width: "100%", borderCollapse: "separate" }}>
+                <thead>
+                  <tr>
+                    <th>Tipo</th>
+                    <th>Valor</th>
+                    <th>Descrição</th>
+                    <th>Data</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {valoresMes.map((f) => (
+                    <tr key={f.id}>
+                      <td>{f.tipo}</td>
+                      <td>R$ {f.valor.toFixed(2)}</td>
+                      <td>{f.descricao || "-"}</td>
+                      <td>{f.data}</td>
+                      <td>
+                        <button onClick={() => editarFinanceiro(f.id)}>✏️</button>
+                        <button onClick={() => excluirFinanceiro(f.id)} style={{ marginLeft: 5 }}>🗑️</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
