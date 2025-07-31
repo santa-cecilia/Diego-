@@ -36,6 +36,7 @@ export default function Pagamentos() {
         atual = { ...prev[idx], ...newData };
       } else {
         atual = {
+          id: null,
           nomeAluno,
           month,
           discountPercent: 0,
@@ -91,8 +92,13 @@ export default function Pagamentos() {
         const valorFinal = valor * (1 - (p.discountPercent || 0) / 100);
 
         return {
-          ...p,
-          id: p.id || Date.now(),
+          id: p.id || null,
+          nomeAluno: p.nomeAluno,
+          month: p.month,
+          discountPercent: p.discountPercent,
+          paid: p.paid,
+          paymentDate: p.paymentDate || null,
+          note: p.note || "",
           valor,
           valor_final: valorFinal,
         };
@@ -103,18 +109,38 @@ export default function Pagamentos() {
       return;
     }
 
-    const { error } = await supabase
-      .from("pagamentos")
-      .upsert(toSave, { onConflict: ["nomeAluno", "month"] });
+    for (const registro of toSave) {
+      if (registro.id) {
+        const { error } = await supabase
+          .from("pagamentos")
+          .update(registro)
+          .eq("id", registro.id);
 
-    if (error) {
-      alert("Erro ao salvar alterações: " + error.message);
-    } else {
-      alert("Alterações salvas com sucesso!");
+        if (error) console.error("Erro ao atualizar:", error);
+      } else {
+        const { data, error } = await supabase
+          .from("pagamentos")
+          .insert([registro])
+          .select();
+
+        if (error) {
+          console.error("Erro ao inserir:", error);
+        } else if (data?.[0]) {
+          setPayments((prev) =>
+            prev.map((p) =>
+              p.nomeAluno === registro.nomeAluno && p.month === registro.month
+                ? { ...p, id: data[0].id }
+                : p
+            )
+          );
+        }
+      }
     }
+
+    alert("Alterações salvas com sucesso!");
   }
 
-  async function adicionarFinanceiro(tipo) {
+  function adicionarFinanceiro(tipo) {
     const valor = prompt(`Digite o valor da ${tipo.toLowerCase()}:`);
     if (!valor) return;
     const numero = parseFloat(valor.replace(",", "."));
@@ -123,7 +149,6 @@ export default function Pagamentos() {
       return;
     }
     const descricao = prompt(`Digite a descrição da ${tipo.toLowerCase()}:`) || "";
-
     const novoRegistro = {
       tipo,
       valor: numero,
@@ -132,16 +157,16 @@ export default function Pagamentos() {
       mes: selectedMonth,
     };
 
-    const { data, error } = await supabase.from("financeiros").insert([novoRegistro]);
-    if (error) {
-      alert("Erro ao salvar registro financeiro: " + error.message);
-      return;
-    }
-
-    setFinanceiros((prev) => [...prev, data[0]]);
+    supabase.from("financeiros").insert([novoRegistro]).select().then(({ data, error }) => {
+      if (error) {
+        console.error("Erro ao inserir financeiro:", error);
+      } else if (data?.[0]) {
+        setFinanceiros((prev) => [...prev, data[0]]);
+      }
+    });
   }
 
-  async function editarFinanceiro(id) {
+  function editarFinanceiro(id) {
     const item = financeiros.find(f => f.id === id);
     if (!item) return;
 
@@ -151,32 +176,26 @@ export default function Pagamentos() {
     const numero = parseFloat(novoValor.replace(",", "."));
     if (isNaN(numero) || numero <= 0) return;
 
-    const { data, error } = await supabase
-      .from("financeiros")
-      .update({ valor: numero, descricao: novaDescricao || "" })
-      .eq("id", id)
-      .select();
+    const atualizado = { ...item, valor: numero, descricao: novaDescricao || "" };
 
-    if (error) {
-      alert("Erro ao editar registro: " + error.message);
-      return;
-    }
-
-    setFinanceiros((prev) =>
-      prev.map((f) => (f.id === id ? data[0] : f))
-    );
+    supabase.from("financeiros").update(atualizado).eq("id", id).then(({ error }) => {
+      if (!error) {
+        setFinanceiros((prev) => prev.map(f => (f.id === id ? atualizado : f)));
+      } else {
+        console.error("Erro ao atualizar financeiro:", error);
+      }
+    });
   }
 
-  async function excluirFinanceiro(id) {
+  function excluirFinanceiro(id) {
     if (!window.confirm("Deseja excluir este lançamento?")) return;
-
-    const { error } = await supabase.from("financeiros").delete().eq("id", id);
-    if (error) {
-      alert("Erro ao excluir registro: " + error.message);
-      return;
-    }
-
-    setFinanceiros((prev) => prev.filter((f) => f.id !== id));
+    supabase.from("financeiros").delete().eq("id", id).then(({ error }) => {
+      if (!error) {
+        setFinanceiros((prev) => prev.filter(f => f.id !== id));
+      } else {
+        console.error("Erro ao excluir financeiro:", error);
+      }
+    });
   }
 
   const listaFinal = alunos.map((aluno) => {
@@ -196,8 +215,8 @@ export default function Pagamentos() {
   });
 
   const valoresMes = financeiros.filter(f => f.mes === selectedMonth);
-  const totalReceitasExtras = valoresMes.filter(f => f.tipo === "Receita").reduce((sum, f) => sum + f.valor, 0);
-  const totalDespesasExtras = valoresMes.filter(f => f.tipo === "Despesa").reduce((sum, f) => sum + f.valor, 0);
+  const totalReceitasExtras = valoresMes.filter(f => f.tipo === "Receita").reduce((sum, f) => sum + Number(f.valor), 0);
+  const totalDespesasExtras = valoresMes.filter(f => f.tipo === "Despesa").reduce((sum, f) => sum + Number(f.valor), 0);
 
   const resumo = listaFinal.reduce(
     (acc, aluno) => {
@@ -214,7 +233,7 @@ export default function Pagamentos() {
   resumo.recebidoTotal -= totalDespesasExtras;
 
   function mostrarResumoFinanceiroDetalhado() {
-    const historico = valoresMes.map((f, i) => `${i + 1}. [${f.tipo}] R$ ${f.valor.toFixed(2)} - ${f.descricao || "Sem descrição"} - ${f.data}`);
+    const historico = valoresMes.map((f, i) => `${i + 1}. [${f.tipo}] R$ ${Number(f.valor).toFixed(2)} - ${f.descricao || "Sem descrição"} - ${f.data}`);
     alert(`Histórico Financeiro - ${selectedMonth}:\n\n${historico.join("\n") || "Nenhum lançamento."}`);
   }
 
@@ -375,7 +394,7 @@ export default function Pagamentos() {
                   {valoresMes.map((f) => (
                     <tr key={f.id}>
                       <td>{f.tipo}</td>
-                      <td>R$ {f.valor.toFixed(2)}</td>
+                      <td>R$ {Number(f.valor).toFixed(2)}</td>
                       <td>{f.descricao || "-"}</td>
                       <td>{f.data}</td>
                       <td>
