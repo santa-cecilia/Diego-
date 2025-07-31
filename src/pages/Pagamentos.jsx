@@ -36,7 +36,6 @@ export default function Pagamentos() {
         atual = { ...prev[idx], ...newData };
       } else {
         atual = {
-          id: null,
           nomeAluno,
           month,
           discountPercent: 0,
@@ -92,13 +91,8 @@ export default function Pagamentos() {
         const valorFinal = valor * (1 - (p.discountPercent || 0) / 100);
 
         return {
-          id: p.id || null,
-          nomeAluno: p.nomeAluno,
-          month: p.month,
-          discountPercent: p.discountPercent,
-          paid: p.paid,
-          paymentDate: p.paymentDate || null,
-          note: p.note || "",
+          ...p,
+          id: p.id || Date.now(),
           valor,
           valor_final: valorFinal,
         };
@@ -109,35 +103,15 @@ export default function Pagamentos() {
       return;
     }
 
-    for (const registro of toSave) {
-      if (registro.id) {
-        const { error } = await supabase
-          .from("pagamentos")
-          .update(registro)
-          .eq("id", registro.id);
+    const { error } = await supabase
+      .from("pagamentos")
+      .upsert(toSave, { onConflict: ["nomeAluno", "month"] });
 
-        if (error) console.error("Erro ao atualizar:", error);
-      } else {
-        const { data, error } = await supabase
-          .from("pagamentos")
-          .insert([registro])
-          .select();
-
-        if (error) {
-          console.error("Erro ao inserir:", error);
-        } else if (data?.[0]) {
-          setPayments((prev) =>
-            prev.map((p) =>
-              p.nomeAluno === registro.nomeAluno && p.month === registro.month
-                ? { ...p, id: data[0].id }
-                : p
-            )
-          );
-        }
-      }
+    if (error) {
+      alert("Erro ao salvar alterações: " + error.message);
+    } else {
+      alert("Alterações salvas com sucesso!");
     }
-
-    alert("Alterações salvas com sucesso!");
   }
 
   function adicionarFinanceiro(tipo) {
@@ -150,20 +124,16 @@ export default function Pagamentos() {
     }
     const descricao = prompt(`Digite a descrição da ${tipo.toLowerCase()}:`) || "";
     const novoRegistro = {
+      id: Date.now(),
       tipo,
       valor: numero,
       descricao,
       data: new Date().toISOString().slice(0, 10),
       mes: selectedMonth,
     };
-
-    supabase.from("financeiros").insert([novoRegistro]).select().then(({ data, error }) => {
-      if (error) {
-        console.error("Erro ao inserir financeiro:", error);
-      } else if (data?.[0]) {
-        setFinanceiros((prev) => [...prev, data[0]]);
-      }
-    });
+    const atualizados = [...financeiros, novoRegistro];
+    setFinanceiros(atualizados);
+    supabase.from("financeiros").upsert([novoRegistro], { onConflict: ["id"] });
   }
 
   function editarFinanceiro(id) {
@@ -176,26 +146,20 @@ export default function Pagamentos() {
     const numero = parseFloat(novoValor.replace(",", "."));
     if (isNaN(numero) || numero <= 0) return;
 
-    const atualizado = { ...item, valor: numero, descricao: novaDescricao || "" };
-
-    supabase.from("financeiros").update(atualizado).eq("id", id).then(({ error }) => {
-      if (!error) {
-        setFinanceiros((prev) => prev.map(f => (f.id === id ? atualizado : f)));
-      } else {
-        console.error("Erro ao atualizar financeiro:", error);
-      }
-    });
+    const atualizados = financeiros.map((f) =>
+      f.id === id
+        ? { ...f, valor: numero, descricao: novaDescricao || "" }
+        : f
+    );
+    setFinanceiros(atualizados);
+    supabase.from("financeiros").upsert([atualizados.find(f => f.id === id)], { onConflict: ["id"] });
   }
 
   function excluirFinanceiro(id) {
     if (!window.confirm("Deseja excluir este lançamento?")) return;
-    supabase.from("financeiros").delete().eq("id", id).then(({ error }) => {
-      if (!error) {
-        setFinanceiros((prev) => prev.filter(f => f.id !== id));
-      } else {
-        console.error("Erro ao excluir financeiro:", error);
-      }
-    });
+    const atualizados = financeiros.filter((f) => f.id !== id);
+    setFinanceiros(atualizados);
+    supabase.from("financeiros").delete().eq("id", id);
   }
 
   const listaFinal = alunos.map((aluno) => {
@@ -215,8 +179,8 @@ export default function Pagamentos() {
   });
 
   const valoresMes = financeiros.filter(f => f.mes === selectedMonth);
-  const totalReceitasExtras = valoresMes.filter(f => f.tipo === "Receita").reduce((sum, f) => sum + Number(f.valor), 0);
-  const totalDespesasExtras = valoresMes.filter(f => f.tipo === "Despesa").reduce((sum, f) => sum + Number(f.valor), 0);
+  const totalReceitasExtras = valoresMes.filter(f => f.tipo === "Receita").reduce((sum, f) => sum + f.valor, 0);
+  const totalDespesasExtras = valoresMes.filter(f => f.tipo === "Despesa").reduce((sum, f) => sum + f.valor, 0);
 
   const resumo = listaFinal.reduce(
     (acc, aluno) => {
@@ -233,7 +197,7 @@ export default function Pagamentos() {
   resumo.recebidoTotal -= totalDespesasExtras;
 
   function mostrarResumoFinanceiroDetalhado() {
-    const historico = valoresMes.map((f, i) => `${i + 1}. [${f.tipo}] R$ ${Number(f.valor).toFixed(2)} - ${f.descricao || "Sem descrição"} - ${f.data}`);
+    const historico = valoresMes.map((f, i) => `${i + 1}. [${f.tipo}] R$ ${f.valor.toFixed(2)} - ${f.descricao || "Sem descrição"} - ${f.data}`);
     alert(`Histórico Financeiro - ${selectedMonth}:\n\n${historico.join("\n") || "Nenhum lançamento."}`);
   }
 
@@ -286,12 +250,6 @@ export default function Pagamentos() {
             <button onClick={exportarExcel} style={{ marginLeft: 10 }}>
               📥 Exportar Excel
             </button>
-            <button
-              onClick={salvarAlteracoes}
-              style={{ marginLeft: 10, backgroundColor: "#4caf50", color: "white" }}
-            >
-              💾 Salvar Alterações
-            </button>
           </div>
 
           <div style={{ marginTop: 10 }}>
@@ -318,6 +276,16 @@ export default function Pagamentos() {
             VALOR RECEBIDO:<strong> R$ {resumo.recebidoTotal.toFixed(2)}</strong><br />
             ✔️:<strong> R$ {totalReceitasExtras.toFixed(2)}</strong>
             🔻:<strong> R$ {totalDespesasExtras.toFixed(2)}</strong>
+          </div>
+
+          {/* Botão de salvar alterações movido para perto da lista */}
+          <div style={{ marginBottom: 10 }}>
+            <button
+              onClick={salvarAlteracoes}
+              style={{ backgroundColor: "#4caf50", color: "white", padding: "8px 16px", borderRadius: "5px" }}
+            >
+              💾 Salvar Alterações
+            </button>
           </div>
 
           <table border="1" cellPadding="4" style={{ width: "100%", borderCollapse: "separate" }}>
@@ -394,7 +362,7 @@ export default function Pagamentos() {
                   {valoresMes.map((f) => (
                     <tr key={f.id}>
                       <td>{f.tipo}</td>
-                      <td>R$ {Number(f.valor).toFixed(2)}</td>
+                      <td>R$ {f.valor.toFixed(2)}</td>
                       <td>{f.descricao || "-"}</td>
                       <td>{f.data}</td>
                       <td>
