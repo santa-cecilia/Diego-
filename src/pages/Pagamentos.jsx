@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
-import { supabase } from "../utils/supabase";
+import { supabase } from "../supabase";
 
 export default function Pagamentos() {
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -9,7 +9,6 @@ export default function Pagamentos() {
     return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
   });
   const [alunos, setAlunos] = useState([]);
-  const [servicos, setServicos] = useState([]);
   const [payments, setPayments] = useState([]);
   const [financeiros, setFinanceiros] = useState([]);
   const [buscaAluno, setBuscaAluno] = useState("");
@@ -18,23 +17,16 @@ export default function Pagamentos() {
   useEffect(() => {
     async function carregarDados() {
       const { data: alunosData } = await supabase.from("alunos").select("*");
-      const { data: servicosData } = await supabase.from("servicos").select("*");
       const { data: pagamentosData } = await supabase.from("pagamentos").select("*");
       const { data: financeirosData } = await supabase.from("financeiros").select("*");
 
       setAlunos(alunosData || []);
-      setServicos(servicosData || []);
       setPayments(pagamentosData || []);
       setFinanceiros(financeirosData || []);
     }
 
     carregarDados();
   }, []);
-
-  async function salvarNoSupabase(pagamentosAtualizados, financeirosAtualizados) {
-    await supabase.from("pagamentos").upsert(pagamentosAtualizados, { onConflict: ["nomeAluno", "month"] });
-    await supabase.from("financeiros").upsert(financeirosAtualizados, { onConflict: ["id"] });
-  }
 
   function updatePayment(nomeAluno, month, newData) {
     setPayments((prev) => {
@@ -47,7 +39,12 @@ export default function Pagamentos() {
       } else {
         updated = [...prev, { nomeAluno, month, ...newData }];
       }
-      salvarNoSupabase(updated, financeiros);
+
+      // Salva apenas o item alterado no Supabase
+      supabase.from("pagamentos").upsert([{ nomeAluno, month, ...newData }], {
+        onConflict: ["nomeAluno", "month"]
+      });
+
       return updated;
     });
   }
@@ -77,6 +74,7 @@ export default function Pagamentos() {
   function handleNoteChange(nomeAluno, value) {
     updatePayment(nomeAluno, selectedMonth, { note: value });
   }
+
   function adicionarFinanceiro(tipo) {
     const valor = prompt(`Digite o valor da ${tipo.toLowerCase()}:`);
     if (!valor) return;
@@ -94,11 +92,9 @@ export default function Pagamentos() {
       data: new Date().toISOString().slice(0, 10),
       mes: selectedMonth,
     };
-    setFinanceiros((prev) => {
-      const atualizados = [...prev, novoRegistro];
-      salvarNoSupabase(payments, atualizados);
-      return atualizados;
-    });
+    const atualizados = [...financeiros, novoRegistro];
+    setFinanceiros(atualizados);
+    supabase.from("financeiros").upsert(atualizados, { onConflict: ["id"] });
   }
 
   function editarFinanceiro(id) {
@@ -111,29 +107,24 @@ export default function Pagamentos() {
     const numero = parseFloat(novoValor.replace(",", "."));
     if (isNaN(numero) || numero <= 0) return;
 
-    setFinanceiros((prev) => {
-      const atualizados = prev.map((f) =>
-        f.id === id
-          ? { ...f, valor: numero, descricao: novaDescricao || "" }
-          : f
-      );
-      salvarNoSupabase(payments, atualizados);
-      return atualizados;
-    });
+    const atualizados = financeiros.map((f) =>
+      f.id === id
+        ? { ...f, valor: numero, descricao: novaDescricao || "" }
+        : f
+    );
+    setFinanceiros(atualizados);
+    supabase.from("financeiros").upsert(atualizados, { onConflict: ["id"] });
   }
 
   function excluirFinanceiro(id) {
     if (!window.confirm("Deseja excluir este lançamento?")) return;
-    setFinanceiros((prev) => {
-      const atualizados = prev.filter((f) => f.id !== id);
-      supabase.from("financeiros").delete().eq("id", id);
-      return atualizados;
-    });
+    const atualizados = financeiros.filter((f) => f.id !== id);
+    setFinanceiros(atualizados);
+    supabase.from("financeiros").delete().eq("id", id);
   }
 
   const listaFinal = alunos.map((aluno) => {
     const valor = parseFloat(aluno.servico?.replace("R$ ", "").replace(",", ".") || 0);
-
     const pagamento = payments.find(
       (p) => p.nomeAluno === aluno.nome && p.month === selectedMonth
     );
@@ -262,9 +253,7 @@ export default function Pagamentos() {
             </thead>
             <tbody>
               {listaFinal
-                .filter((item) =>
-                  item.nome.toLowerCase().includes(buscaAluno.toLowerCase())
-                )
+                .filter((item) => item.nome.toLowerCase().includes(buscaAluno.toLowerCase()))
                 .filter((item) => !filtroNaoPagos || !item.paid)
                 .map((item) => (
                   <tr key={item.nome}>
