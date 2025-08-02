@@ -142,7 +142,7 @@ const Servicos = () => {
       </div>
 
       <div className="mb-2 font-semibold">
-        📋 Total de serviços cadastrados: {servicosFiltrados.length}
+        Total de serviços cadastrados: {servicosFiltrados.length}
       </div>
 
       <table className="w-full border text-sm">
@@ -165,13 +165,13 @@ const Servicos = () => {
                   onClick={() => editarServico(index)}
                   className="text-blue-600 mr-2"
                 >
-                  ✏️ Editar
+                  Editar
                 </button>
                 <button
                   onClick={() => removerServico(index)}
                   className="text-red-600"
                 >
-                  🗑️ Remover
+                  Remover
                 </button>
               </td>
             </tr>
@@ -191,7 +191,7 @@ const Servicos = () => {
         onClick={exportarExcel}
         className="mt-4 bg-green-500 text-white px-4 py-2 rounded"
       >
-        📁 Exportar para Excel
+        Excel
       </button>
     </div>
   );
