@@ -108,8 +108,8 @@ const CadastrarAlunos = () => {
   );
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <p className="text-center mb-6">ALUNOS CADASTRADO: {alunos.length}</p>
+    <div className="p-6 max-w-7xl mx-auto">
+      <p className="text-center mb-6 font-semibold">ALUNOS CADASTRADOS: {alunos.length}</p>
 
       <form className="space-y-4">
         <input name="nome" value={form.nome} onChange={handleChange} className="border p-2 w-full rounded" placeholder="Nome Completo" /><br />
@@ -154,23 +154,23 @@ const CadastrarAlunos = () => {
         <button className="border px-4 py-2 rounded">📥 Word</button>
       </div>
 
-      {/* TABELA DE ALUNOS */}
+      {/* Tabela de Alunos */}
       <div className="overflow-x-auto mt-6">
-        <table className="table-auto w-full border-collapse border border-gray-300">
-          <thead className="bg-gray-100">
+        <table className="min-w-full border border-gray-300">
+          <thead className="bg-gray-100 text-sm">
             <tr>
-              <th className="border border-gray-300 px-2 py-1 text-sm">Nome</th>
-              <th className="border border-gray-300 px-2 py-1 text-sm">Nascimento</th>
-              <th className="border border-gray-300 px-2 py-1 text-sm">Idade</th>
-              <th className="border border-gray-300 px-2 py-1 text-sm">Pais</th>
-              <th className="border border-gray-300 px-2 py-1 text-sm">Cidade</th>
-              <th className="border border-gray-300 px-2 py-1 text-sm">Serviço</th>
-              <th className="border border-gray-300 px-2 py-1 text-sm">Dia</th>
-              <th className="border border-gray-300 px-2 py-1 text-sm">Horário</th>
-              <th className="border border-gray-300 px-2 py-1 text-sm">Ações</th>
+              <th className="border border-gray-300 px-2 py-1">Nome</th>
+              <th className="border border-gray-300 px-2 py-1">Nascimento</th>
+              <th className="border border-gray-300 px-2 py-1">Idade</th>
+              <th className="border border-gray-300 px-2 py-1">Pais</th>
+              <th className="border border-gray-300 px-2 py-1">Cidade</th>
+              <th className="border border-gray-300 px-2 py-1">Serviço</th>
+              <th className="border border-gray-300 px-2 py-1">Dia</th>
+              <th className="border border-gray-300 px-2 py-1">Horário</th>
+              <th className="border border-gray-300 px-2 py-1">Ações</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-gray-200">
             {alunosFiltrados.map((aluno, index) => (
               <tr key={index} className="hover:bg-gray-50 text-sm">
                 <td className="border border-gray-300 px-2 py-1">{aluno.nome}</td>
