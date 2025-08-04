@@ -116,14 +116,14 @@ const CadastrarAlunos = () => {
         <input type="date" name="nascimento" value={form.nascimento} onChange={handleChange} className="border p-2 w-full rounded" /><br />
         <input name="idade" value={form.idade} readOnly className="border p-2 w-full bg-gray-100 rounded" placeholder="Idade" /><br />
         <input name="pais" value={form.pais} onChange={handleChange} className="border p-2 w-full rounded" placeholder="Nome dos Pais" /><br />
-        <select name="cidade" value={form.cidade} onChange={handleChange} className="border p-2 w-full rounded"><br />
+        <select name="cidade" value={form.cidade} onChange={handleChange} className="border p-2 w-full rounded">
           <option value="">Selecione a cidade</option>
           <option value="Mafra">Mafra</option>
           <option value="Rio Negro">Rio Negro</option>
           <option value="Itaiópolis">Itaiópolis</option>
           <option value="Outra">Outra</option>
         </select><br />
-        <select name="servico" value={form.servico} onChange={handleChange} className="border p-2 w-full rounded"><br />
+        <select name="servico" value={form.servico} onChange={handleChange} className="border p-2 w-full rounded">
           <option value="">Selecione um valor</option>
           {servicos.map((s, i) => (
             <option key={i} value={`R$ ${parseFloat(s.valor).toFixed(2)}`}>
@@ -154,19 +154,52 @@ const CadastrarAlunos = () => {
         <button className="border px-4 py-2 rounded">📥 Word</button>
       </div>
 
-      <ul className="mt-6 space-y-4">
-        {alunosFiltrados.map((aluno, index) => (
-          <li key={index} className="border p-4 rounded shadow">
-            <p>
-              <strong>{aluno.nome}</strong> — Nasc: {aluno.nascimento} — Idade: {aluno.idade} — Pais: {aluno.pais} — Cidade: {aluno.cidade} — Serviço: {aluno.servico} — {aluno.diaSemana} às {aluno.horario}
-            </p>
-            <div className="mt-2 flex gap-2">
-              <button onClick={() => editarAluno(index)} className="bg-yellow-100 px-3 py-1 rounded border text-yellow-800">Editar</button>
-              <button onClick={() => removerAluno(index)} className="bg-red-100 px-3 py-1 rounded border text-red-600">Remover</button>
-            </div>
-          </li>
-        ))}
-      </ul>
+      {/* TABELA DE ALUNOS */}
+      <div className="overflow-x-auto mt-6">
+        <table className="table-auto w-full border-collapse border border-gray-300">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="border border-gray-300 px-2 py-1 text-sm">Nome</th>
+              <th className="border border-gray-300 px-2 py-1 text-sm">Nascimento</th>
+              <th className="border border-gray-300 px-2 py-1 text-sm">Idade</th>
+              <th className="border border-gray-300 px-2 py-1 text-sm">Pais</th>
+              <th className="border border-gray-300 px-2 py-1 text-sm">Cidade</th>
+              <th className="border border-gray-300 px-2 py-1 text-sm">Serviço</th>
+              <th className="border border-gray-300 px-2 py-1 text-sm">Dia</th>
+              <th className="border border-gray-300 px-2 py-1 text-sm">Horário</th>
+              <th className="border border-gray-300 px-2 py-1 text-sm">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {alunosFiltrados.map((aluno, index) => (
+              <tr key={index} className="hover:bg-gray-50 text-sm">
+                <td className="border border-gray-300 px-2 py-1">{aluno.nome}</td>
+                <td className="border border-gray-300 px-2 py-1">{aluno.nascimento}</td>
+                <td className="border border-gray-300 px-2 py-1">{aluno.idade}</td>
+                <td className="border border-gray-300 px-2 py-1">{aluno.pais}</td>
+                <td className="border border-gray-300 px-2 py-1">{aluno.cidade}</td>
+                <td className="border border-gray-300 px-2 py-1">{aluno.servico}</td>
+                <td className="border border-gray-300 px-2 py-1">{aluno.diaSemana}</td>
+                <td className="border border-gray-300 px-2 py-1">{aluno.horario}</td>
+                <td className="border border-gray-300 px-2 py-1 flex gap-2">
+                  <button
+                    onClick={() => editarAluno(index)}
+                    className="bg-yellow-100 px-3 py-1 rounded border text-yellow-800 text-xs"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => removerAluno(index)}
+                    className="bg-red-100 px-3 py-1 rounded border text-red-600 text-xs"
+                  >
+                    Remover
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
