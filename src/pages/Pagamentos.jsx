@@ -236,30 +236,44 @@ export default function Pagamentos() {
     alert(`Histórico Financeiro - ${selectedMonth}:\n\n${historico.join("\n")}`);
   }
 
-  // Exportar lista de pagamentos para Excel
-  function exportarExcel() {
-    const dados = listaFinal.map((aluno) => {
-      const descontoReais = aluno.valor * (aluno.discountPercent / 100);
-      return {
-        Aluno: aluno.nome,
-        Valor: aluno.valor.toFixed(2),
-        "Desconto %": `${aluno.discountPercent}%`,
-        "Desconto (R$)": descontoReais.toFixed(2),
-        "Valor Final (R$)": (aluno.valor - descontoReais).toFixed(2),
-        Pago: aluno.paid ? "Sim" : "Não",
-        "Data Pagamento": aluno.paymentDate,
-        Observação: aluno.note,
-      };
-    });
+function exportarExcel() {
+  const dados = listaFinal.map((aluno) => {
+    const descontoReais = aluno.valor * (aluno.discountPercent / 100);
+    return {
+      Aluno: aluno.nome,
+      Valor: aluno.valor.toFixed(2),
+      "Desconto %": `${aluno.discountPercent}%`,
+      "Desconto (R$)": descontoReais.toFixed(2),
+      "Valor Final (R$)": (aluno.valor - descontoReais).toFixed(2),
+      Pago: aluno.paid ? "Sim" : "Não",
+      "Data Pagamento": aluno.paymentDate,
+      Observação: aluno.note,
+    };
+  });
 
-    const ws = XLSX.utils.json_to_sheet(dados);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Pagamentos");
+  // 🔹 Calcular total do "Valor Final (R$)"
+  const totalValorFinal = dados.reduce((sum, item) => sum + parseFloat(item["Valor Final (R$)"]), 0);
 
-    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
-    saveAs(blob, `Pagamentos_${selectedMonth}.xlsx`);
-  }
+  // 🔹 Adicionar linha de total no final
+  dados.push({
+    Aluno: "TOTAL",
+    Valor: "",
+    "Desconto %": "",
+    "Desconto (R$)": "",
+    "Valor Final (R$)": totalValorFinal.toFixed(2),
+    Pago: "",
+    "Data Pagamento": "",
+    Observação: "",
+  });
+
+  const ws = XLSX.utils.json_to_sheet(dados);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Pagamentos");
+
+  const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
+  saveAs(blob, `Pagamentos_${selectedMonth}.xlsx`);
+}
 
   return (
     <div style={{ padding: 20 }}>
