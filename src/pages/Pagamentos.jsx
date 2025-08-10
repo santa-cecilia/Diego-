@@ -251,15 +251,17 @@ function exportarExcel() {
     };
   });
 
-  // 🔹 Calcular total do "Valor Final (R$)"
+  // 🔹 Calcular os totais
+  const totalValor = dados.reduce((sum, item) => sum + parseFloat(item["Valor"]), 0);
+  const totalDescontoReais = dados.reduce((sum, item) => sum + parseFloat(item["Desconto (R$)"]), 0);
   const totalValorFinal = dados.reduce((sum, item) => sum + parseFloat(item["Valor Final (R$)"]), 0);
 
   // 🔹 Adicionar linha de total no final
   dados.push({
     Aluno: "TOTAL",
-    Valor: "",
+    Valor: totalValor.toFixed(2),
     "Desconto %": "",
-    "Desconto (R$)": "",
+    "Desconto (R$)": totalDescontoReais.toFixed(2),
     "Valor Final (R$)": totalValorFinal.toFixed(2),
     Pago: "",
     "Data Pagamento": "",
