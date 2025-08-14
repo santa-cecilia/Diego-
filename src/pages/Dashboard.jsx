@@ -13,15 +13,7 @@ function Dashboard() {
 
   const handleLogout = async () => {
     await logout();
-  };
-
-  return (
-    <div>
-      <div className="bg-purple-700 text-white p-2 flex justify-between items-center">
-        <span> {usuario?.nome || 'Usuário'}</span>
-         
-          
-        
+  }; 
           
       </div>
 
